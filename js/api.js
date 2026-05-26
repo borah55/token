@@ -151,6 +151,47 @@
     { id: 'FX:USDNGN', label: 'USD/NGN (OTC) — Nigeria',       group: 'forex_emerging', source: 'yahoo', ymb: 'NGN=X', base: 1480,     vol: 3.2 },
     { id: 'FX:USDKES', label: 'USD/KES (OTC) — Kenya',         group: 'forex_emerging', source: 'yahoo', ymb: 'KES=X', base: 129.0,    vol: 0.20 },
 
+    // === Additional emerging-market currencies — South Asia ===
+    { id: 'FX:USDLKR', label: 'USD/LKR (OTC) — Sri Lanka',     group: 'forex_emerging', source: 'yahoo', ymb: 'LKR=X', base: 295.0,    vol: 0.40 },
+    { id: 'FX:USDNPR', label: 'USD/NPR (OTC) — Nepal',         group: 'forex_emerging', source: 'yahoo', ymb: 'NPR=X', base: 133.0,    vol: 0.10 },
+
+    // === Additional emerging-market currencies — Central Asia / Caucasus ===
+    { id: 'FX:USDKZT', label: 'USD/KZT (OTC) — Kazakhstan',    group: 'forex_emerging', source: 'yahoo', ymb: 'KZT=X', base: 470.0,    vol: 0.80 },
+    { id: 'FX:USDUZS', label: 'USD/UZS (OTC) — Uzbekistan',    group: 'forex_emerging', source: 'yahoo', ymb: 'UZS=X', base: 12500,    vol: 18 },
+    { id: 'FX:USDAZN', label: 'USD/AZN (OTC) — Azerbaijan',    group: 'forex_emerging', source: 'yahoo', ymb: 'AZN=X', base: 1.700,    vol: 0.0010 },
+    { id: 'FX:USDGEL', label: 'USD/GEL (OTC) — Georgia',       group: 'forex_emerging', source: 'yahoo', ymb: 'GEL=X', base: 2.730,    vol: 0.0040 },
+
+    // === Additional emerging-market currencies — Gulf / Middle East ===
+    { id: 'FX:USDKWD', label: 'USD/KWD (OTC) — Kuwait',        group: 'forex_emerging', source: 'yahoo', ymb: 'KWD=X', base: 0.308,    vol: 0.00010 },
+    { id: 'FX:USDBHD', label: 'USD/BHD (OTC) — Bahrain',       group: 'forex_emerging', source: 'yahoo', ymb: 'BHD=X', base: 0.376,    vol: 0.00010 },
+    { id: 'FX:USDOMR', label: 'USD/OMR (OTC) — Oman',          group: 'forex_emerging', source: 'yahoo', ymb: 'OMR=X', base: 0.385,    vol: 0.00010 },
+    { id: 'FX:USDJOD', label: 'USD/JOD (OTC) — Jordan',        group: 'forex_emerging', source: 'yahoo', ymb: 'JOD=X', base: 0.709,    vol: 0.00010 },
+    { id: 'FX:USDLBP', label: 'USD/LBP (OTC) — Lebanon',       group: 'forex_emerging', source: 'yahoo', ymb: 'LBP=X', base: 89500,    vol: 30 },
+
+    // === Additional emerging-market currencies — North Africa ===
+    { id: 'FX:USDMAD', label: 'USD/MAD (OTC) — Morocco',       group: 'forex_emerging', source: 'yahoo', ymb: 'MAD=X', base: 9.950,    vol: 0.020 },
+    { id: 'FX:USDTND', label: 'USD/TND (OTC) — Tunisia',       group: 'forex_emerging', source: 'yahoo', ymb: 'TND=X', base: 3.130,    vol: 0.0060 },
+    { id: 'FX:USDDZD', label: 'USD/DZD (OTC) — Algeria',       group: 'forex_emerging', source: 'yahoo', ymb: 'DZD=X', base: 134.5,    vol: 0.20 },
+
+    // === Additional emerging-market currencies — Sub-Saharan Africa ===
+    { id: 'FX:USDGHS', label: 'USD/GHS (OTC) — Ghana',         group: 'forex_emerging', source: 'yahoo', ymb: 'GHS=X', base: 14.80,    vol: 0.080 },
+    { id: 'FX:USDUGX', label: 'USD/UGX (OTC) — Uganda',        group: 'forex_emerging', source: 'yahoo', ymb: 'UGX=X', base: 3760,     vol: 6.0 },
+    { id: 'FX:USDTZS', label: 'USD/TZS (OTC) — Tanzania',      group: 'forex_emerging', source: 'yahoo', ymb: 'TZS=X', base: 2580,     vol: 4.0 },
+    { id: 'FX:USDETB', label: 'USD/ETB (OTC) — Ethiopia',      group: 'forex_emerging', source: 'yahoo', ymb: 'ETB=X', base: 124.0,    vol: 0.20 },
+    { id: 'FX:USDMZN', label: 'USD/MZN (OTC) — Mozambique',    group: 'forex_emerging', source: 'yahoo', ymb: 'MZN=X', base: 63.85,    vol: 0.040 },
+
+    // === Additional emerging-market currencies — Eastern Europe ===
+    { id: 'FX:USDBYN', label: 'USD/BYN (OTC) — Belarus',       group: 'forex_emerging', source: 'yahoo', ymb: 'BYN=X', base: 3.330,    vol: 0.0040 },
+    { id: 'FX:USDMDL', label: 'USD/MDL (OTC) — Moldova',       group: 'forex_emerging', source: 'yahoo', ymb: 'MDL=X', base: 17.85,    vol: 0.040 },
+    { id: 'FX:USDRSD', label: 'USD/RSD (OTC) — Serbia',        group: 'forex_emerging', source: 'yahoo', ymb: 'RSD=X', base: 108.7,    vol: 0.20 },
+
+    // === Additional emerging-market currencies — Caribbean / Latin America ===
+    { id: 'FX:USDDOP', label: 'USD/DOP (OTC) — Dominican Rep.', group: 'forex_emerging', source: 'yahoo', ymb: 'DOP=X', base: 60.20,    vol: 0.060 },
+    { id: 'FX:USDJMD', label: 'USD/JMD (OTC) — Jamaica',       group: 'forex_emerging', source: 'yahoo', ymb: 'JMD=X', base: 158.0,    vol: 0.30 },
+    { id: 'FX:USDUYU', label: 'USD/UYU (OTC) — Uruguay',       group: 'forex_emerging', source: 'yahoo', ymb: 'UYU=X', base: 41.20,    vol: 0.080 },
+    { id: 'FX:USDPYG', label: 'USD/PYG (OTC) — Paraguay',      group: 'forex_emerging', source: 'yahoo', ymb: 'PYG=X', base: 7720,     vol: 8.0 },
+    { id: 'FX:USDBOB', label: 'USD/BOB (OTC) — Bolivia',       group: 'forex_emerging', source: 'yahoo', ymb: 'BOB=X', base: 6.910,    vol: 0.0070 },
+
     // === Commodities OTC (Yahoo Finance) ===
     { id: 'CM:XAUUSD', label: 'Gold (XAU/USD)',    group: 'commodity', source: 'yahoo', ymb: 'GC=F',   base: 2380, vol: 1.6 },
     { id: 'CM:XAGUSD', label: 'Silver (XAG/USD)',  group: 'commodity', source: 'yahoo', ymb: 'SI=F',   base: 28.6, vol: 0.05 },

@@ -32,7 +32,18 @@
     tgTimer: null,            // setInterval id for the scanner
     tgRunning: false,         // true while a scan pass is in flight
     tgLastScanAt: null,       // ms timestamp of last completed scan
-    tgStatusTimer: null       // ticks the "X seconds ago" line in the UI
+    tgStatusTimer: null,      // ticks the "X seconds ago" line in the UI
+
+    // Diagnostic counters from the most recent scan pass
+    tgDiag: {
+      pairs: 0,         // total pairs analyzed
+      found: 0,         // non-NEUTRAL signals returned by the engine
+      skippedWeak: 0,   // signals dropped because strength < threshold
+      deduped: 0,       // signals already sent (dedupe cache hit)
+      sent: 0,          // newly forwarded this scan
+      failed: 0,        // Telegram send failures this scan
+      hint: ''          // human-readable summary
+    }
   };
 
   /* =================================================================
@@ -600,13 +611,34 @@
       const el = $(toggleMap[k]);
       if (!el) return;
       el.addEventListener('change', () => {
-        Store.saveSettings({ [k]: el.checked });
+        const patch = { [k]: el.checked };
+
+        // === Telegram setup convenience ===
+        // If the user enables the auto-scanner, automatically enable
+        // forwarding too — having "auto on" + "forwarding off" was the
+        // most common cause of "scanner does nothing" reports.
+        if (k === 'tgAuto' && el.checked) {
+          patch.tg = true;
+          if ($('#setTg')) $('#setTg').checked = true;
+        }
+        // Disabling forwarding should also stop the auto scanner so
+        // the status line reflects reality.
+        if (k === 'tg' && !el.checked) {
+          patch.tgAuto = false;
+          if ($('#setTgAuto')) $('#setTgAuto').checked = false;
+        }
+
+        Store.saveSettings(patch);
+
         if (k === 'auto') startAutoRefresh();
         if (k === 'sound' && el.checked) {
           Notify.primeAudio();
           Notify.playChime('buy');
         }
-        if (k === 'tg' || k === 'tgAuto') startTelegramScanner();
+        if (k === 'tg' || k === 'tgAuto') {
+          startTelegramScanner();
+          updateTgStatusUI();
+        }
       });
     });
 
@@ -675,6 +707,83 @@
         Notify.toast({ type: 'info', title: 'Counter reset', desc: 'Daily Telegram counter cleared' });
       });
     }
+
+    // Setup diagnostic — runs the full pipeline against a known-good
+    // pair and shows where any failure occurs (token / chat / network /
+    // signal threshold / dedupe).
+    const diagBtn = $('#tgDiagBtn');
+    if (diagBtn) {
+      diagBtn.addEventListener('click', runSetupDiagnostic);
+    }
+  }
+
+  async function runSetupDiagnostic() {
+    const s = Store.getSettings();
+    const lines = [];
+    let ok = true;
+
+    function step(label, passed, detail) {
+      lines.push(`${passed ? '✓' : '✗'} ${label}${detail ? ' — ' + detail : ''}`);
+      if (!passed) ok = false;
+    }
+
+    // 1) Token + chat ID present?
+    step('Bot token entered', !!s.tgToken, s.tgToken ? '' : 'paste a token from @BotFather');
+    step('Chat ID entered',   !!s.tgChat,  s.tgChat ? '' : 'paste your chat / channel ID');
+
+    // 2) Token format
+    const tokOk = /^\d+:[A-Za-z0-9_\-]{20,}$/.test((s.tgToken || '').trim());
+    step('Token format looks valid', tokOk, tokOk ? '' : 'expected NUMBER:LETTERS form');
+
+    // 3) Forwarding switch on
+    step('Forwarding enabled', !!s.tg, s.tg ? '' : 'toggle "Enable Telegram forwarding"');
+
+    // 4) Try sending a test message right now
+    if (s.tgToken && s.tgChat && tokOk) {
+      const r = await Notify.sendTelegram(
+        '🔧 *Setup Diagnostic*\n\nIf you see this, your Telegram pipeline works end-to-end. The auto-scanner will now forward every qualifying signal.',
+        { force: true }
+      );
+      step('Telegram API responded OK', r.ok, r.ok ? 'message delivered' : (r.error || 'unknown error'));
+    } else {
+      step('Telegram API responded OK', false, 'skipped (missing credentials)');
+    }
+
+    // 5) Auto-scanner state
+    step('Auto-scanner enabled', !!s.tgAuto, s.tgAuto ? '' : 'toggle "Forward strong signals automatically"');
+
+    // 6) Threshold sanity
+    const minS = +s.tgMinStrength || 75;
+    if (minS > 85) {
+      step('Threshold is reachable', false, `${minS}% is very high — try 65–75%`);
+    } else {
+      step('Threshold is reachable', true, `${minS}% is reasonable`);
+    }
+
+    // 7) Run a one-shot live scan and show counts
+    Notify.toast({ type: 'info', title: 'Diagnostic running…', desc: 'Scanning the market once' });
+    await runTelegramScan(true, /*diagnostic*/ true);
+    const d = state.tgDiag;
+    step(
+      'Scan completed',
+      d.pairs > 0,
+      `analysed ${d.pairs} pair(s), found ${d.found} signal(s), forwarded ${d.sent}`
+    );
+
+    Notify.toast({
+      type: ok ? 'buy' : 'sell',
+      title: ok ? 'Setup looks healthy ✓' : 'Setup needs attention',
+      desc: lines.slice(-1)[0],
+      timeout: 5000
+    });
+
+    // Render full results inside the diagnostic box
+    const box = $('#tgDiagBox');
+    const hint = $('#tgDiagHint');
+    if (box && hint) {
+      box.style.display = 'block';
+      hint.innerHTML = lines.map(l => `<div class="tg-diag-line ${l.startsWith('✓') ? 'pass' : 'fail'}">${escapeHtml(l)}</div>`).join('');
+    }
   }
 
   function loadSettings() {
@@ -733,54 +842,88 @@
     return Api.PAIRS_FILTER[g] || Api.PAIRS_FILTER.all;
   }
 
-  async function runTelegramScan(forced) {
+  async function runTelegramScan(forced, diagnostic) {
     const s = Store.getSettings();
-    if (!s.tg || !s.tgToken || !s.tgChat) return;
+    if (!s.tg || !s.tgToken || !s.tgChat) {
+      // Surface a clear hint so users know why nothing fires.
+      if (forced) {
+        Notify.toast({
+          type: 'sell',
+          title: 'Cannot scan yet',
+          desc: !s.tgToken ? 'Bot token is missing'
+              : !s.tgChat ? 'Chat ID is missing'
+              : 'Enable Telegram forwarding first'
+        });
+      }
+      return;
+    }
     if (!forced && !s.tgAuto) return;
     if (state.tgRunning) return;     // skip if previous scan still running
 
     state.tgRunning = true;
+    // Reset diagnostic counters for this scan
+    const diag = state.tgDiag = {
+      pairs: 0, found: 0, skippedWeak: 0, deduped: 0, sent: 0, failed: 0, hint: ''
+    };
+    updateTgStatusUI();
+
     try {
       const pairs = pairsForScanGroup(s.tgScanGroup);
-      if (!pairs.length) return;
+      if (!pairs.length) {
+        diag.hint = 'No pairs in selected group';
+        return;
+      }
 
       const tf = s.tgTimeframe || '1m';
       const minStrength = Math.max(50, +s.tgMinStrength || 75);
+      const broker = $('#broker') ? $('#broker').selectedOptions[0].textContent.trim() : 'Auto-Scan';
+      let stoppedDueToAuth = false;
 
       // Throttled parallel: chunks of 5
       for (let i = 0; i < pairs.length; i += 5) {
+        if (stoppedDueToAuth) break;
         const chunk = pairs.slice(i, i + 5);
         const results = await Promise.all(chunk.map(p =>
           Strategy.analyze(p, tf).catch(() => null)
         ));
 
         for (const sig of results) {
-          if (!sig || sig.direction === 'NEUTRAL') continue;
-          if (sig.strength < minStrength) continue;
+          if (!sig) continue;
+          diag.pairs++;
+          if (sig.direction === 'NEUTRAL') continue;
+          diag.found++;
+
+          if (sig.strength < minStrength) {
+            diag.skippedWeak++;
+            continue;
+          }
 
           const key = `${sig.symbol}|${sig.timeframe}|${sig.direction}|${sig.candleTime}`;
-          if (Store.isTgSent(key)) continue;
+          if (Store.isTgSent(key)) {
+            diag.deduped++;
+            continue;
+          }
 
           // Reserve immediately so concurrent scans don't double-send
           Store.markTgSent(key);
 
-          const broker = $('#broker') ? $('#broker').selectedOptions[0].textContent.trim() : 'Auto-Scan';
           const msg = Notify.formatTelegram({ ...sig, broker });
           const r = await Notify.sendTelegram(msg, { force: true });
           if (r.ok) {
+            diag.sent++;
             Store.bumpTgSentCount();
-            // Optional in-app toast so the user sees it on screen too
-            if (s.push) {
+            if (s.push && !diagnostic) {
               Notify.toast({
                 type: sig.direction === 'BUY' ? 'buy' : 'sell',
                 title: `Telegram → ${sig.direction} ${sig.pairLabel}`,
                 desc: `Strength ${sig.strength}% · Win ${sig.winProb}%`
               });
             }
-          } else if (r.error) {
+          } else {
+            diag.failed++;
             // Stop the scanner if the API rejected our credentials.
-            // The user can fix the token and re-enable.
-            if (/Unauthorized|Bot token|Chat ID|Chat not found|Bot not found/i.test(r.error)) {
+            if (r.error && /Unauthorized|Bot token|Chat ID|Chat not found|Bot not found/i.test(r.error)) {
+              stoppedDueToAuth = true;
               stopTelegramScanner();
               Notify.toast({ type: 'sell', title: 'Auto-scanner stopped', desc: r.error });
               break;
@@ -788,6 +931,15 @@
           }
         }
       }
+
+      // Build a short human-readable hint summarizing the scan
+      if (diag.pairs === 0) diag.hint = 'No pairs analysed (data sources offline?)';
+      else if (diag.found === 0) diag.hint = 'No directional signals on this scan — wait or relax the filter';
+      else if (diag.sent > 0) diag.hint = `Forwarded ${diag.sent} signal(s) ✓`;
+      else if (diag.skippedWeak > 0 && diag.deduped === 0) diag.hint = `All signals below ${minStrength}% — lower the threshold`;
+      else if (diag.deduped > 0 && diag.sent === 0) diag.hint = 'All eligible signals already sent in the last hour';
+      else if (diag.failed > 0) diag.hint = `${diag.failed} send(s) failed — check Telegram error above`;
+
       state.tgLastScanAt = Date.now();
     } finally {
       state.tgRunning = false;
@@ -844,6 +996,24 @@
       } else {
         errEl.style.display = 'none';
       }
+    }
+
+    // ----- Diagnostic counters from the most recent scan -----
+    const d = state.tgDiag;
+    const box = $('#tgDiagBox');
+    if (d && (d.pairs > 0 || d.hint)) {
+      if (box) box.style.display = 'block';
+      const map = {
+        '#tgDiagPairs':   d.pairs,
+        '#tgDiagFound':   d.found,
+        '#tgDiagSkipped': d.skippedWeak,
+        '#tgDiagDeduped': d.deduped,
+        '#tgDiagSent':    d.sent,
+        '#tgDiagFailed':  d.failed
+      };
+      Object.keys(map).forEach(sel => { const el = $(sel); if (el) el.textContent = map[sel]; });
+      const hintEl = $('#tgDiagHint');
+      if (hintEl && d.hint) hintEl.textContent = d.hint;
     }
   }
 

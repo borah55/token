@@ -24,7 +24,7 @@
     tgToken: '',                // bot token from @BotFather
     tgChat: '',                 // chat / channel ID
     tgAuto: false,              // automatic background scanner
-    tgMinStrength: 75,          // minimum signal strength % to forward
+    tgMinStrength: 65,          // minimum signal strength % to forward (was 75 — too restrictive)
     tgIntervalSec: 60,          // how often (seconds) the scanner runs
     tgScanGroup: 'forex',       // 'all' | 'crypto' | 'forex' | 'forex_emerging'
                                 // | 'commodity' | 'index' | 'stock' | 'synthetic'

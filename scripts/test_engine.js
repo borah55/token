@@ -55,12 +55,22 @@ function makeWindow() {
   console.log(`Total assets: ${allIds.length}`);
   for (const g of Object.keys(groups).sort()) console.log(`  ${g}: ${groups[g]}`);
 
-  const newEmerging = ['FX:USDINR', 'FX:USDBRL', 'FX:USDIDR', 'FX:USDPKR', 'FX:USDBDT'];
-  console.log('\nUser-requested currencies registered?');
+  const newEmerging = [
+    'FX:USDINR', 'FX:USDBRL', 'FX:USDIDR', 'FX:USDPKR', 'FX:USDBDT',
+    'FX:USDLKR', 'FX:USDNPR', 'FX:USDKZT', 'FX:USDUZS', 'FX:USDAZN',
+    'FX:USDGEL', 'FX:USDKWD', 'FX:USDBHD', 'FX:USDOMR', 'FX:USDJOD',
+    'FX:USDLBP', 'FX:USDMAD', 'FX:USDTND', 'FX:USDDZD', 'FX:USDGHS',
+    'FX:USDUGX', 'FX:USDTZS', 'FX:USDETB', 'FX:USDMZN',
+    'FX:USDBYN', 'FX:USDMDL', 'FX:USDRSD',
+    'FX:USDDOP', 'FX:USDJMD', 'FX:USDUYU', 'FX:USDPYG', 'FX:USDBOB'
+  ];
+  console.log(`\nNew emerging pairs registered (${newEmerging.length} expected):`);
+  let missing = 0;
   for (const id of newEmerging) {
     const a = win0.OTCApi.ASSET_BY_ID[id];
-    console.log(`  ${id}: ${a ? '✓ ' + a.label : '✗ MISSING'}`);
+    if (!a) { console.log(`  ✗ ${id} MISSING`); missing++; }
   }
+  console.log(`  ${newEmerging.length - missing}/${newEmerging.length} registered ✓`);
 
   // ---- 2. Strategy distribution across symbols (incl. emerging) ----
   const symbols = [

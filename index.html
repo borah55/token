@@ -278,9 +278,9 @@
 
           <div class="tg-field">
             <label class="tg-lbl">
-              Minimum strength <strong id="tgMinStrengthOut" class="tg-out">75%</strong>
+              Minimum strength <strong id="tgMinStrengthOut" class="tg-out">65%</strong>
             </label>
-            <input type="range" id="tgMinStrength" min="60" max="95" step="1" value="75" class="tg-range" />
+            <input type="range" id="tgMinStrength" min="55" max="95" step="1" value="65" class="tg-range" />
           </div>
         </div>
 
@@ -295,10 +295,27 @@
           </div>
         </div>
 
+        <!-- Diagnostic counters from the most recent scan -->
+        <div class="tg-diag" id="tgDiagBox" style="display:none">
+          <div class="tg-diag-title">Last scan diagnostic</div>
+          <div class="tg-diag-grid">
+            <div><span id="tgDiagPairs">0</span><em>scanned</em></div>
+            <div><span id="tgDiagFound">0</span><em>signals found</em></div>
+            <div><span id="tgDiagSkipped">0</span><em>below min · ${''}</em></div>
+            <div><span id="tgDiagDeduped">0</span><em>deduped</em></div>
+            <div><span id="tgDiagSent">0</span><em>sent now</em></div>
+            <div><span id="tgDiagFailed">0</span><em>failed</em></div>
+          </div>
+          <div class="tg-diag-hint" id="tgDiagHint"></div>
+        </div>
+
         <div class="tg-actions">
           <button id="tgScanNowBtn" class="btn-secondary" type="button">Scan Now</button>
           <button id="tgResetBtn" class="btn-ghost" type="button">Reset Counter</button>
         </div>
+        <button id="tgDiagBtn" class="btn-secondary" type="button" style="margin-top:8px">
+          🔧 Run Setup Diagnostic
+        </button>
       </div>
 
       <div class="card setting-card">
@@ -347,6 +364,7 @@
   <script src="js/indicators.js" defer></script>
   <script src="js/patterns.js" defer></script>
   <script src="js/api.js" defer></script>
+  <script src="js/fx-rates.js" defer></script>
   <script src="js/strategy.js" defer></script>
   <script src="js/chart.js" defer></script>
   <script src="js/app.js" defer></script>
