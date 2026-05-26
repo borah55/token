@@ -146,6 +146,7 @@
         <button class="chip chip-active" data-filter="all">All</button>
         <button class="chip" data-filter="crypto">Crypto</button>
         <button class="chip" data-filter="forex">Forex</button>
+        <button class="chip" data-filter="forex_emerging">Emerging FX</button>
         <button class="chip" data-filter="commodity">Metals/Oil</button>
         <button class="chip" data-filter="index">Indices</button>
         <button class="chip" data-filter="stock">Stocks</button>
@@ -218,15 +219,86 @@
       <div class="card setting-card">
         <div class="setting-name" style="margin-bottom:10px">Telegram alerts</div>
         <div class="setting-desc" style="margin-bottom:14px">
-          Send each signal to your Telegram channel via your own bot.
+          Send each generated signal to your Telegram channel via your own bot.
+          The auto-scanner below can also forward strong signals automatically in the background.
         </div>
-        <input type="text" id="tgToken" class="input" placeholder="Bot token (from @BotFather)" />
-        <input type="text" id="tgChat" class="input" placeholder="Chat ID (e.g. -1001234567890)" />
+        <input type="text" id="tgToken" class="input" placeholder="Bot token (from @BotFather)" autocomplete="off" />
+        <input type="text" id="tgChat" class="input" placeholder="Chat ID (e.g. -1001234567890)" autocomplete="off" />
         <div class="setting-row" style="margin-top:6px">
           <div class="setting-desc">Enable Telegram forwarding</div>
           <label class="switch"><input type="checkbox" id="setTg" /><span></span></label>
         </div>
         <button id="tgTestBtn" class="btn-secondary" type="button">Send Test Message</button>
+        <div id="tgErrorLine" class="tg-error" style="display:none;margin-top:10px"></div>
+      </div>
+
+      <div class="card setting-card">
+        <div class="setting-name" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span class="tg-dot off" id="tgStatusDot"></span>
+          Auto-Telegram Scanner
+        </div>
+        <div class="setting-desc" id="tgStatusLine" style="margin-bottom:14px">Auto-scanner OFF</div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Forward strong signals automatically</div>
+            <div class="setting-desc">Continuously scans the market and sends every qualifying signal to Telegram</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="setTgAuto" /><span></span></label>
+        </div>
+
+        <div class="tg-grid">
+          <div class="tg-field">
+            <label class="tg-lbl" for="tgScanGroup">Scan group</label>
+            <select id="tgScanGroup" class="select-mini">
+              <option value="forex">Forex (all majors + crosses + exotics + emerging)</option>
+              <option value="forex_emerging">Emerging FX (INR, BRL, IDR, PKR, BDT…)</option>
+              <option value="crypto">Crypto OTC</option>
+              <option value="commodity">Commodities</option>
+              <option value="index">Indices</option>
+              <option value="stock">Stocks</option>
+              <option value="synthetic">Synthetic</option>
+              <option value="all">Curated mix (all groups)</option>
+              <option value="watchlist">My watchlist only</option>
+            </select>
+          </div>
+
+          <div class="tg-field">
+            <label class="tg-lbl" for="tgTimeframe">Timeframe</label>
+            <select id="tgTimeframe" class="select-mini">
+              <option value="1m">M1 (1-minute)</option>
+              <option value="5m">M5 (5-minute)</option>
+            </select>
+          </div>
+
+          <div class="tg-field">
+            <label class="tg-lbl" for="tgInterval">Scan every (seconds)</label>
+            <input type="number" id="tgInterval" class="input" min="20" max="900" step="10" value="60" />
+          </div>
+
+          <div class="tg-field">
+            <label class="tg-lbl">
+              Minimum strength <strong id="tgMinStrengthOut" class="tg-out">75%</strong>
+            </label>
+            <input type="range" id="tgMinStrength" min="60" max="95" step="1" value="75" class="tg-range" />
+          </div>
+        </div>
+
+        <div class="tg-stats">
+          <div class="tg-stat">
+            <span id="tgSentCount" class="tg-stat-num">0</span>
+            <span class="tg-stat-lbl">Sent today</span>
+          </div>
+          <div class="tg-stat">
+            <span id="tgSentTotal" class="tg-stat-num">0</span>
+            <span class="tg-stat-lbl">Sent total</span>
+          </div>
+        </div>
+
+        <div class="tg-actions">
+          <button id="tgScanNowBtn" class="btn-secondary" type="button">Scan Now</button>
+          <button id="tgResetBtn" class="btn-ghost" type="button">Reset Counter</button>
+        </div>
       </div>
 
       <div class="card setting-card">

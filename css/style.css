@@ -693,3 +693,148 @@ html, body {
   color: var(--sell);
 }
 .smc-pill.bear strong { color: var(--sell); }
+
+
+
+/* ===== SMC summary block on signal card ===== */
+.smc-block {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(0, 229, 209, 0.06), rgba(0, 229, 209, 0.02));
+  border: 1px solid rgba(0, 229, 209, 0.18);
+  border-radius: 14px;
+}
+.smc-block .conf-title {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.smc-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.smc-pill {
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(5, 13, 26, 0.5);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.smc-pill strong { color: var(--text); font-weight: 700; }
+.smc-pill.bull { background: rgba(0, 230, 118, 0.10); border-color: rgba(0, 230, 118, 0.35); color: var(--buy); }
+.smc-pill.bull strong { color: var(--buy); }
+.smc-pill.bear { background: rgba(255, 59, 92, 0.10); border-color: rgba(255, 59, 92, 0.35); color: var(--sell); }
+.smc-pill.bear strong { color: var(--sell); }
+
+/* ===== Auto-Telegram scanner ===== */
+.tg-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--text-mute);
+  display: inline-block;
+}
+.tg-dot.on  { background: var(--buy); box-shadow: 0 0 12px var(--buy-glow); animation: blink 1.6s ease-in-out infinite; }
+.tg-dot.off { background: var(--text-mute); }
+
+.tg-error {
+  font-size: 12.5px;
+  color: var(--sell);
+  background: rgba(255, 59, 92, 0.08);
+  border: 1px solid rgba(255, 59, 92, 0.30);
+  border-radius: 10px;
+  padding: 8px 12px;
+  line-height: 1.4;
+}
+
+.tg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+.tg-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tg-field .input { margin: 0; }
+.tg-lbl {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 700;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.tg-out { color: var(--accent); font-size: 13px; letter-spacing: 0; }
+
+.select-mini {
+  appearance: none; -webkit-appearance: none;
+  width: 100%;
+  background: rgba(5, 13, 26, 0.6);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+.select-mini option, .select-mini optgroup { background: var(--bg-2); color: var(--text); }
+
+.tg-range {
+  width: 100%; height: 6px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--buy));
+  outline: none; appearance: none; -webkit-appearance: none;
+  cursor: pointer;
+}
+.tg-range::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #04212a;
+  box-shadow: 0 0 14px rgba(0, 229, 209, 0.55);
+  cursor: pointer;
+}
+.tg-range::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #04212a;
+  box-shadow: 0 0 14px rgba(0, 229, 209, 0.55);
+  cursor: pointer;
+}
+
+.tg-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin: 12px 0 10px;
+}
+.tg-stat {
+  background: rgba(5, 13, 26, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  text-align: center;
+}
+.tg-stat-num {
+  display: block; font-size: 22px; font-weight: 800; color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.tg-stat-lbl {
+  display: block; font-size: 10.5px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 1px; margin-top: 2px;
+}
+
+.tg-actions {
+  display: grid; grid-template-columns: 2fr 1fr; gap: 8px;
+  margin-top: 6px;
+}
+.tg-actions .btn-secondary, .tg-actions .btn-ghost { margin: 0; padding: 11px 14px; }
+
+@media (max-width: 380px) {
+  .tg-grid { grid-template-columns: 1fr; }
+}

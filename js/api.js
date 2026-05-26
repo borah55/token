@@ -117,6 +117,40 @@
     { id: 'FX:USDSEK', label: 'USD/SEK (OTC)',     group: 'forex_exotic', source: 'yahoo', ymb: 'SEK=X',  base: 10.90, vol: 0.0080 },
     { id: 'FX:USDCNH', label: 'USD/CNH (OTC)',     group: 'forex_exotic', source: 'yahoo', ymb: 'CNH=X',  base: 7.250, vol: 0.0030 },
 
+    // === Emerging-market currencies — Asia (Yahoo Finance) ===
+    { id: 'FX:USDINR', label: 'USD/INR (OTC) — India',         group: 'forex_emerging', source: 'yahoo', ymb: 'INR=X', base: 83.50,    vol: 0.060 },
+    { id: 'FX:USDIDR', label: 'USD/IDR (OTC) — Indonesia',     group: 'forex_emerging', source: 'yahoo', ymb: 'IDR=X', base: 16200,    vol: 25 },
+    { id: 'FX:USDPKR', label: 'USD/PKR (OTC) — Pakistan',      group: 'forex_emerging', source: 'yahoo', ymb: 'PKR=X', base: 280.0,    vol: 0.40 },
+    { id: 'FX:USDBDT', label: 'USD/BDT (OTC) — Bangladesh',    group: 'forex_emerging', source: 'yahoo', ymb: 'BDT=X', base: 118.0,    vol: 0.18 },
+    { id: 'FX:USDPHP', label: 'USD/PHP (OTC) — Philippines',   group: 'forex_emerging', source: 'yahoo', ymb: 'PHP=X', base: 57.20,    vol: 0.060 },
+    { id: 'FX:USDTHB', label: 'USD/THB (OTC) — Thailand',      group: 'forex_emerging', source: 'yahoo', ymb: 'THB=X', base: 35.50,    vol: 0.040 },
+    { id: 'FX:USDVND', label: 'USD/VND (OTC) — Vietnam',       group: 'forex_emerging', source: 'yahoo', ymb: 'VND=X', base: 25400,    vol: 18 },
+    { id: 'FX:USDMYR', label: 'USD/MYR (OTC) — Malaysia',      group: 'forex_emerging', source: 'yahoo', ymb: 'MYR=X', base: 4.450,    vol: 0.0060 },
+    { id: 'FX:USDTWD', label: 'USD/TWD (OTC) — Taiwan',        group: 'forex_emerging', source: 'yahoo', ymb: 'TWD=X', base: 32.10,    vol: 0.040 },
+    { id: 'FX:USDKRW', label: 'USD/KRW (OTC) — South Korea',   group: 'forex_emerging', source: 'yahoo', ymb: 'KRW=X', base: 1380,     vol: 1.6 },
+
+    // === Emerging-market currencies — Latin America (Yahoo Finance) ===
+    { id: 'FX:USDBRL', label: 'USD/BRL (OTC) — Brazil',        group: 'forex_emerging', source: 'yahoo', ymb: 'BRL=X', base: 5.200,    vol: 0.0080 },
+    { id: 'FX:USDARS', label: 'USD/ARS (OTC) — Argentina',     group: 'forex_emerging', source: 'yahoo', ymb: 'ARS=X', base: 950,      vol: 1.5 },
+    { id: 'FX:USDCOP', label: 'USD/COP (OTC) — Colombia',      group: 'forex_emerging', source: 'yahoo', ymb: 'COP=X', base: 3950,     vol: 5.2 },
+    { id: 'FX:USDCLP', label: 'USD/CLP (OTC) — Chile',         group: 'forex_emerging', source: 'yahoo', ymb: 'CLP=X', base: 960,      vol: 1.4 },
+    { id: 'FX:USDPEN', label: 'USD/PEN (OTC) — Peru',          group: 'forex_emerging', source: 'yahoo', ymb: 'PEN=X', base: 3.750,    vol: 0.0050 },
+
+    // === Emerging-market currencies — EMEA (Yahoo Finance) ===
+    { id: 'FX:USDRUB', label: 'USD/RUB (OTC) — Russia',        group: 'forex_emerging', source: 'yahoo', ymb: 'RUB=X', base: 92.0,     vol: 0.18 },
+    { id: 'FX:USDUAH', label: 'USD/UAH (OTC) — Ukraine',       group: 'forex_emerging', source: 'yahoo', ymb: 'UAH=X', base: 41.50,    vol: 0.080 },
+    { id: 'FX:USDPLN', label: 'USD/PLN (OTC) — Poland',        group: 'forex_emerging', source: 'yahoo', ymb: 'PLN=X', base: 4.050,    vol: 0.0070 },
+    { id: 'FX:USDCZK', label: 'USD/CZK (OTC) — Czechia',       group: 'forex_emerging', source: 'yahoo', ymb: 'CZK=X', base: 23.20,    vol: 0.040 },
+    { id: 'FX:USDHUF', label: 'USD/HUF (OTC) — Hungary',       group: 'forex_emerging', source: 'yahoo', ymb: 'HUF=X', base: 360,      vol: 0.60 },
+    { id: 'FX:USDRON', label: 'USD/RON (OTC) — Romania',       group: 'forex_emerging', source: 'yahoo', ymb: 'RON=X', base: 4.650,    vol: 0.0080 },
+    { id: 'FX:USDILS', label: 'USD/ILS (OTC) — Israel',        group: 'forex_emerging', source: 'yahoo', ymb: 'ILS=X', base: 3.650,    vol: 0.0060 },
+    { id: 'FX:USDSAR', label: 'USD/SAR (OTC) — Saudi Arabia',  group: 'forex_emerging', source: 'yahoo', ymb: 'SAR=X', base: 3.750,    vol: 0.0010 },
+    { id: 'FX:USDAED', label: 'USD/AED (OTC) — UAE',           group: 'forex_emerging', source: 'yahoo', ymb: 'AED=X', base: 3.673,    vol: 0.0010 },
+    { id: 'FX:USDQAR', label: 'USD/QAR (OTC) — Qatar',         group: 'forex_emerging', source: 'yahoo', ymb: 'QAR=X', base: 3.640,    vol: 0.0010 },
+    { id: 'FX:USDEGP', label: 'USD/EGP (OTC) — Egypt',         group: 'forex_emerging', source: 'yahoo', ymb: 'EGP=X', base: 48.50,    vol: 0.080 },
+    { id: 'FX:USDNGN', label: 'USD/NGN (OTC) — Nigeria',       group: 'forex_emerging', source: 'yahoo', ymb: 'NGN=X', base: 1480,     vol: 3.2 },
+    { id: 'FX:USDKES', label: 'USD/KES (OTC) — Kenya',         group: 'forex_emerging', source: 'yahoo', ymb: 'KES=X', base: 129.0,    vol: 0.20 },
+
     // === Commodities OTC (Yahoo Finance) ===
     { id: 'CM:XAUUSD', label: 'Gold (XAU/USD)',    group: 'commodity', source: 'yahoo', ymb: 'GC=F',   base: 2380, vol: 1.6 },
     { id: 'CM:XAGUSD', label: 'Silver (XAG/USD)',  group: 'commodity', source: 'yahoo', ymb: 'SI=F',   base: 28.6, vol: 0.05 },
@@ -395,14 +429,17 @@
   function priceDecimals(symbolId) {
     const a = ASSET_BY_ID[symbolId];
     if (!a) return 4;
-    if (a.group === 'forex_major' || a.group === 'forex_cross' || a.group === 'forex_exotic') {
+    if (a.group === 'forex_major' || a.group === 'forex_cross' || a.group === 'forex_exotic' || a.group === 'forex_emerging') {
       // JPY pairs use 3 decimals
       if (a.id.includes('JPY')) return 3;
-      // High-value exotics
-      if (a.id.includes('TRY') || a.id.includes('MXN') || a.id.includes('ZAR') ||
-          a.id.includes('SEK') || a.id.includes('NOK') || a.id.includes('CNH') ||
-          a.id.includes('HKD')) return 4;
-      return 5;
+      // Heuristic by base value for emerging-market currencies that span
+      // very different orders of magnitude
+      const base = a.base || 1;
+      if (base >= 5000) return 1;        // VND, IDR
+      if (base >= 500)  return 2;        // KRW, COP, CLP, ARS, NGN, HUF, KES
+      if (base >= 100)  return 3;        // PKR, BDT, INR, EGP, RUB, TWD, etc.
+      if (base >= 10)   return 4;        // TRY, MXN, NOK, SEK, ZAR, HKD, etc.
+      return 5;                          // EUR/USD, GBP/USD, USD/CAD, USD/CHF, BRL, MYR, etc.
     }
     if (a.group === 'commodity') {
       if (a.id === 'CM:NATGAS') return 3;
@@ -438,17 +475,26 @@
   // Convenience aggregations used by the Live screen filter chips
   const PAIRS_FILTER = {
     crypto:    PAIRS_BY_GROUP.crypto || [],
-    forex:     [...(PAIRS_BY_GROUP.forex_major || []), ...(PAIRS_BY_GROUP.forex_cross || []), ...(PAIRS_BY_GROUP.forex_exotic || [])],
+    forex:     [
+      ...(PAIRS_BY_GROUP.forex_major || []),
+      ...(PAIRS_BY_GROUP.forex_cross || []),
+      ...(PAIRS_BY_GROUP.forex_exotic || []),
+      ...(PAIRS_BY_GROUP.forex_emerging || [])
+    ],
+    forex_emerging: PAIRS_BY_GROUP.forex_emerging || [],
     commodity: PAIRS_BY_GROUP.commodity || [],
     index:     PAIRS_BY_GROUP.index || [],
     stock:     PAIRS_BY_GROUP.stock || [],
     synthetic: PAIRS_BY_GROUP.synthetic || []
   };
 
-  // Top picks for the "All" scanner so we don't blast 80 calls at once
+  // Top picks for the "All" scanner so we don't blast 100+ calls at once
   PAIRS_FILTER.all = [
     ...PAIRS_FILTER.crypto.slice(0, 6),
-    ...PAIRS_FILTER.forex.slice(0, 8),
+    ...(PAIRS_BY_GROUP.forex_major || []).slice(0, 5),
+    ...(PAIRS_BY_GROUP.forex_cross || []).slice(0, 4),
+    ...(PAIRS_BY_GROUP.forex_emerging || []).slice(0, 5),
+    ...(PAIRS_BY_GROUP.forex_exotic || []).slice(0, 2),
     ...PAIRS_FILTER.commodity.slice(0, 3),
     ...PAIRS_FILTER.index.slice(0, 3),
     ...PAIRS_FILTER.stock.slice(0, 3),

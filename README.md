@@ -4,14 +4,15 @@ A mobile-first, dark-theme web app that generates OTC trading signals (BUY/CALL 
 
 Built with **pure HTML, CSS, and JavaScript** — no build step, no frameworks. Drop the folder into a cPanel `public_html` and it runs.
 
-## What's covered (80+ OTC pairs)
+## What's covered (124 OTC pairs across 9 groups)
 
 | Group | Examples | Data source |
 |---|---|---|
 | **Crypto OTC** (22 pairs) | BTC, ETH, BNB, SOL, XRP, DOGE, ADA, LTC, AVAX, LINK, DOT, MATIC, TRX, BCH, ATOM, FIL, NEAR, UNI, ETC, XLM, SHIB, VET | Binance public API (real-time, 1m granularity) |
 | **Forex Majors OTC** | EUR/USD, GBP/USD, USD/JPY, AUD/USD, USD/CAD, USD/CHF, NZD/USD | Yahoo Finance |
-| **Forex Crosses OTC** (18 pairs) | EUR/GBP, EUR/JPY, GBP/JPY, EUR/AUD, EUR/CAD, EUR/CHF, EUR/NZD, GBP/AUD, GBP/CAD, GBP/CHF, GBP/NZD, AUD/CAD, AUD/CHF, AUD/JPY, AUD/NZD, CAD/JPY, CHF/JPY, NZD/CAD, NZD/CHF, NZD/JPY | Yahoo Finance |
+| **Forex Crosses OTC** (20 pairs) | EUR/GBP, EUR/JPY, GBP/JPY, EUR/AUD, EUR/CAD, EUR/CHF, EUR/NZD, GBP/AUD, GBP/CAD, GBP/CHF, GBP/NZD, AUD/CAD, AUD/CHF, AUD/JPY, AUD/NZD, CAD/JPY, CHF/JPY, NZD/CAD, NZD/CHF, NZD/JPY | Yahoo Finance |
 | **Forex Exotics OTC** | USD/SGD, USD/TRY, USD/MXN, USD/ZAR, USD/HKD, USD/NOK, USD/SEK, USD/CNH | Yahoo Finance |
+| **Emerging Markets OTC** (28 pairs) | **Asia:** USD/INR, USD/IDR, USD/PKR, USD/BDT, USD/PHP, USD/THB, USD/VND, USD/MYR, USD/TWD, USD/KRW · **LATAM:** USD/BRL, USD/ARS, USD/COP, USD/CLP, USD/PEN · **EMEA:** USD/RUB, USD/UAH, USD/PLN, USD/CZK, USD/HUF, USD/RON, USD/ILS, USD/SAR, USD/AED, USD/QAR, USD/EGP, USD/NGN, USD/KES | Yahoo Finance |
 | **Commodities OTC** | Gold, Silver, WTI, Brent, Natural Gas, Platinum, Palladium, Copper | Yahoo Finance |
 | **Indices OTC** | S&P 500, Dow 30, NASDAQ 100, FTSE 100, DAX 40, Nikkei 225 | Yahoo Finance |
 | **Stocks OTC** | AAPL, TSLA, AMZN, MSFT, GOOGL, META, NFLX, NVDA, AMD, BA, MCD, KO | Yahoo Finance |
@@ -110,9 +111,34 @@ If `corsproxy.io` ever rate-limits you on a popular site, the app silently rotat
 
 ## Telegram alerts
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) and grab the token.
-2. Get your channel/chat ID (e.g. via [@userinfobot](https://t.me/userinfobot) or by adding the bot to a channel).
-3. Open **Settings** in the app, paste both values, toggle "Enable Telegram forwarding", tap **Send Test Message**.
+The app supports two complementary modes:
+
+**1. Manual forwarding** — every signal you generate from the home screen is sent to your bot.
+
+**2. Automatic background scanner** — continuously scans your chosen pair group and forwards every qualifying signal automatically. Configure it in Settings → *Auto-Telegram Scanner*:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Forward strong signals automatically | OFF | Master on/off for the background scanner |
+| Scan group | Forex (all) | Which pair group to scan: All / Crypto / Forex / Emerging FX / Commodities / Indices / Stocks / Synthetic / Watchlist |
+| Timeframe | M1 | Analysis timeframe (M1 or M5) |
+| Scan every (seconds) | 60 | How often the scanner runs |
+| Minimum strength | 75% | Only signals at or above this strength are forwarded |
+
+The scanner has built-in safeguards:
+- **Dedupe cache** — the same signal (symbol + timeframe + direction + candle) is never forwarded twice within an hour
+- **Daily counter** — see how many signals were sent today and in total
+- **Auto-stop on bad credentials** — if Telegram returns "unauthorized" or "chat not found", the scanner stops and tells you the exact reason instead of silently spamming retries
+- **Concurrency-safe** — overlapping ticks are skipped if a previous scan is still running
+
+### Setup
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the bot token.
+2. Get your chat ID. For a private channel, add the bot as admin first, then send a message to the channel and check `https://api.telegram.org/bot<TOKEN>/getUpdates`. Channel IDs look like `-1001234567890`.
+3. Open **Settings**, paste the token and chat ID, toggle **Enable Telegram forwarding**, then tap **Send Test Message**.
+4. To enable the auto-scanner, also toggle **Forward strong signals automatically**.
+
+If anything goes wrong, the exact Telegram error message is shown right under the "Send Test Message" button.
 
 ## Smoke test
 

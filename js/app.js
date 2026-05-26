@@ -26,7 +26,13 @@
     countdownTimer: null,
     autoTimer: null,
     liveFilter: 'all',
-    chartTimer: null
+    chartTimer: null,
+
+    // Auto-Telegram scanner state
+    tgTimer: null,            // setInterval id for the scanner
+    tgRunning: false,         // true while a scan pass is in flight
+    tgLastScanAt: null,       // ms timestamp of last completed scan
+    tgStatusTimer: null       // ticks the "X seconds ago" line in the UI
   };
 
   /* =================================================================
@@ -57,22 +63,27 @@
 
     // Start live scanner & watchlist auto-refresh
     startAutoRefresh();
+
+    // Start the Telegram auto-scanner if it's enabled
+    startTelegramScanner();
+    startTelegramStatusTicker();
   }
 
   /* =================================================================
      ASSET DROPDOWN — built from window.OTCApi.ASSETS registry
   ================================================================= */
   const GROUP_LABELS = {
-    crypto:        'Crypto OTC',
-    forex_major:   'Forex Majors (OTC)',
-    forex_cross:   'Forex Crosses (OTC)',
-    forex_exotic:  'Forex Exotics (OTC)',
-    commodity:     'Commodities (Gold, Oil, etc.)',
-    index:         'Indices (S&P, Nasdaq, etc.)',
-    stock:         'Stocks (OTC)',
-    synthetic:     'Synthetic (Volatility, Boom, Crash)'
+    crypto:         'Crypto OTC',
+    forex_major:    'Forex Majors (OTC)',
+    forex_cross:    'Forex Crosses (OTC)',
+    forex_exotic:   'Forex Exotics (OTC)',
+    forex_emerging: 'Emerging Markets (INR · BRL · IDR · PKR · BDT…)',
+    commodity:      'Commodities (Gold, Oil, etc.)',
+    index:          'Indices (S&P, Nasdaq, etc.)',
+    stock:          'Stocks (OTC)',
+    synthetic:      'Synthetic (Volatility, Boom, Crash)'
   };
-  const GROUP_ORDER = ['crypto', 'forex_major', 'forex_cross', 'forex_exotic', 'commodity', 'index', 'stock', 'synthetic'];
+  const GROUP_ORDER = ['crypto', 'forex_major', 'forex_cross', 'forex_exotic', 'forex_emerging', 'commodity', 'index', 'stock', 'synthetic'];
 
   function populateAssetDropdown() {
     const sel = $('#asset');
@@ -580,12 +591,13 @@
      SETTINGS
   ================================================================= */
   function bindSettingsScreen() {
-    const map = {
+    // Generic toggle settings
+    const toggleMap = {
       sound: '#setSound', push: '#setPush', auto: '#setAuto',
-      filterWeak: '#setFilter', tg: '#setTg'
+      filterWeak: '#setFilter', tg: '#setTg', tgAuto: '#setTgAuto'
     };
-    Object.keys(map).forEach(k => {
-      const el = $(map[k]);
+    Object.keys(toggleMap).forEach(k => {
+      const el = $(toggleMap[k]);
       if (!el) return;
       el.addEventListener('change', () => {
         Store.saveSettings({ [k]: el.checked });
@@ -594,20 +606,75 @@
           Notify.primeAudio();
           Notify.playChime('buy');
         }
+        if (k === 'tg' || k === 'tgAuto') startTelegramScanner();
       });
     });
 
+    // Text inputs
     ['tgToken', 'tgChat'].forEach(k => {
       const el = $('#' + k);
-      el.addEventListener('change', () => Store.saveSettings({ [k]: el.value.trim() }));
+      el.addEventListener('change', () => {
+        Store.saveSettings({ [k]: el.value.trim() });
+        startTelegramScanner();
+      });
     });
 
+    // Strength slider
+    const minEl = $('#tgMinStrength');
+    const minOut = $('#tgMinStrengthOut');
+    if (minEl) {
+      minEl.addEventListener('input', () => {
+        if (minOut) minOut.textContent = minEl.value + '%';
+      });
+      minEl.addEventListener('change', () => {
+        Store.saveSettings({ tgMinStrength: +minEl.value });
+      });
+    }
+
+    // Interval input
+    const intEl = $('#tgInterval');
+    if (intEl) {
+      intEl.addEventListener('change', () => {
+        const n = Math.max(20, Math.min(900, +intEl.value || 60));
+        intEl.value = n;
+        Store.saveSettings({ tgIntervalSec: n });
+        startTelegramScanner();
+      });
+    }
+
+    // Scan group + timeframe
+    const grpEl = $('#tgScanGroup');
+    if (grpEl) grpEl.addEventListener('change', () => Store.saveSettings({ tgScanGroup: grpEl.value }));
+    const tfEl = $('#tgTimeframe');
+    if (tfEl) tfEl.addEventListener('change', () => Store.saveSettings({ tgTimeframe: tfEl.value }));
+
+    // Test button
     $('#tgTestBtn').addEventListener('click', async () => {
-      const r = await Notify.sendTelegram('✅ Test message from OTC Signal Generator');
+      const r = await Notify.sendTelegram(
+        '✅ *OTC Signal Generator — test message*\n\nIf you see this, your bot token and chat ID are correctly configured.',
+        { force: true }
+      );
       if (r.ok) Notify.toast({ type: 'buy', title: 'Telegram OK', desc: 'Test message delivered' });
-      else if (r.skipped) Notify.toast({ type: 'sell', title: 'Telegram off', desc: 'Enable it and add bot token + chat ID' });
       else Notify.toast({ type: 'sell', title: 'Telegram failed', desc: r.error || 'Check token / chat ID' });
+      updateTgStatusUI();
     });
+
+    // Force-scan button
+    const forceBtn = $('#tgScanNowBtn');
+    if (forceBtn) {
+      forceBtn.addEventListener('click', () => runTelegramScan(true));
+    }
+
+    // Reset counter button
+    const resetBtn = $('#tgResetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('Reset Telegram signal counter and dedupe cache?')) return;
+        Store.resetTgSentCount();
+        updateTgStatusUI();
+        Notify.toast({ type: 'info', title: 'Counter reset', desc: 'Daily Telegram counter cleared' });
+      });
+    }
   }
 
   function loadSettings() {
@@ -617,8 +684,167 @@
     $('#setAuto').checked = !!s.auto;
     $('#setFilter').checked = !!s.filterWeak;
     $('#setTg').checked = !!s.tg;
+    $('#setTgAuto').checked = !!s.tgAuto;
     $('#tgToken').value = s.tgToken || '';
     $('#tgChat').value = s.tgChat || '';
+
+    if ($('#tgMinStrength')) {
+      $('#tgMinStrength').value = s.tgMinStrength;
+      if ($('#tgMinStrengthOut')) $('#tgMinStrengthOut').textContent = s.tgMinStrength + '%';
+    }
+    if ($('#tgInterval')) $('#tgInterval').value = s.tgIntervalSec;
+    if ($('#tgScanGroup')) $('#tgScanGroup').value = s.tgScanGroup;
+    if ($('#tgTimeframe')) $('#tgTimeframe').value = s.tgTimeframe;
+
+    updateTgStatusUI();
+  }
+
+  /* =================================================================
+     AUTO-TELEGRAM SCANNER
+     - Runs on a configurable interval in the background
+     - Scans the user's chosen pair group for high-strength signals
+     - Dedupes via OTCStore.markTgSent so the same setup isn't forwarded
+       multiple times within the candle's lifetime
+     - Tracks daily / total counters and exposes status to the UI
+  ================================================================= */
+  function startTelegramScanner() {
+    stopTelegramScanner();
+    const s = Store.getSettings();
+    if (!s.tg || !s.tgAuto || !s.tgToken || !s.tgChat) {
+      updateTgStatusUI();
+      return;
+    }
+    const intervalMs = Math.max(20, +s.tgIntervalSec || 60) * 1000;
+    state.tgTimer = setInterval(runTelegramScan, intervalMs);
+    // Kick off an immediate scan so the user sees activity right away
+    runTelegramScan();
+    updateTgStatusUI();
+  }
+
+  function stopTelegramScanner() {
+    if (state.tgTimer) {
+      clearInterval(state.tgTimer);
+      state.tgTimer = null;
+    }
+  }
+
+  function pairsForScanGroup(g) {
+    if (g === 'watchlist') return Store.getWatchlist();
+    return Api.PAIRS_FILTER[g] || Api.PAIRS_FILTER.all;
+  }
+
+  async function runTelegramScan(forced) {
+    const s = Store.getSettings();
+    if (!s.tg || !s.tgToken || !s.tgChat) return;
+    if (!forced && !s.tgAuto) return;
+    if (state.tgRunning) return;     // skip if previous scan still running
+
+    state.tgRunning = true;
+    try {
+      const pairs = pairsForScanGroup(s.tgScanGroup);
+      if (!pairs.length) return;
+
+      const tf = s.tgTimeframe || '1m';
+      const minStrength = Math.max(50, +s.tgMinStrength || 75);
+
+      // Throttled parallel: chunks of 5
+      for (let i = 0; i < pairs.length; i += 5) {
+        const chunk = pairs.slice(i, i + 5);
+        const results = await Promise.all(chunk.map(p =>
+          Strategy.analyze(p, tf).catch(() => null)
+        ));
+
+        for (const sig of results) {
+          if (!sig || sig.direction === 'NEUTRAL') continue;
+          if (sig.strength < minStrength) continue;
+
+          const key = `${sig.symbol}|${sig.timeframe}|${sig.direction}|${sig.candleTime}`;
+          if (Store.isTgSent(key)) continue;
+
+          // Reserve immediately so concurrent scans don't double-send
+          Store.markTgSent(key);
+
+          const broker = $('#broker') ? $('#broker').selectedOptions[0].textContent.trim() : 'Auto-Scan';
+          const msg = Notify.formatTelegram({ ...sig, broker });
+          const r = await Notify.sendTelegram(msg, { force: true });
+          if (r.ok) {
+            Store.bumpTgSentCount();
+            // Optional in-app toast so the user sees it on screen too
+            if (s.push) {
+              Notify.toast({
+                type: sig.direction === 'BUY' ? 'buy' : 'sell',
+                title: `Telegram → ${sig.direction} ${sig.pairLabel}`,
+                desc: `Strength ${sig.strength}% · Win ${sig.winProb}%`
+              });
+            }
+          } else if (r.error) {
+            // Stop the scanner if the API rejected our credentials.
+            // The user can fix the token and re-enable.
+            if (/Unauthorized|Bot token|Chat ID|Chat not found|Bot not found/i.test(r.error)) {
+              stopTelegramScanner();
+              Notify.toast({ type: 'sell', title: 'Auto-scanner stopped', desc: r.error });
+              break;
+            }
+          }
+        }
+      }
+      state.tgLastScanAt = Date.now();
+    } finally {
+      state.tgRunning = false;
+      updateTgStatusUI();
+    }
+  }
+
+  function startTelegramStatusTicker() {
+    if (state.tgStatusTimer) clearInterval(state.tgStatusTimer);
+    state.tgStatusTimer = setInterval(updateTgStatusUI, 1000);
+  }
+
+  function updateTgStatusUI() {
+    const lineEl = $('#tgStatusLine');
+    const dotEl  = $('#tgStatusDot');
+    const countEl = $('#tgSentCount');
+    const totalEl = $('#tgSentTotal');
+    const errEl  = $('#tgErrorLine');
+    if (!lineEl) return;
+
+    const s = Store.getSettings();
+    const today = Store.todayKey();
+    const sentToday = s.tgSentDate === today ? (s.tgSentToday || 0) : 0;
+
+    if (countEl) countEl.textContent = sentToday;
+    if (totalEl) totalEl.textContent = s.tgSentTotal || 0;
+
+    let label, on = false;
+    if (!s.tg) {
+      label = 'Telegram forwarding is OFF';
+    } else if (!s.tgToken || !s.tgChat) {
+      label = 'Telegram: bot token / chat ID required';
+    } else if (!s.tgAuto) {
+      label = 'Auto-scanner OFF (manual signals will still forward)';
+    } else if (state.tgRunning) {
+      label = 'Auto-scanner: scanning…';
+      on = true;
+    } else if (state.tgLastScanAt) {
+      const sec = Math.round((Date.now() - state.tgLastScanAt) / 1000);
+      const next = Math.max(0, Math.round((+s.tgIntervalSec || 60) - sec));
+      label = `Auto-scanner ON • last scan ${sec}s ago • next in ${next}s`;
+      on = true;
+    } else {
+      label = 'Auto-scanner ON • starting…';
+      on = true;
+    }
+    lineEl.textContent = label;
+    if (dotEl) dotEl.className = 'tg-dot ' + (on ? 'on' : 'off');
+
+    if (errEl) {
+      if (s.tgLastError) {
+        errEl.textContent = '⚠ ' + s.tgLastError;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+    }
   }
 
   /* =================================================================

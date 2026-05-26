@@ -45,23 +45,42 @@ function makeWindow() {
 }
 
 (async () => {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'FX:EURUSD', 'SY:VOL75', 'FX:USDJPY', 'SY:BOOM1000'];
+  // ---- 1. Asset registry sanity check ----
+  const win0 = makeWindow();
+  const allIds = win0.OTCApi.ASSETS.map(a => a.id);
+  const groups = {};
+  win0.OTCApi.ASSETS.forEach(a => { groups[a.group] = (groups[a.group] || 0) + 1; });
+
+  console.log('=== Asset registry ===');
+  console.log(`Total assets: ${allIds.length}`);
+  for (const g of Object.keys(groups).sort()) console.log(`  ${g}: ${groups[g]}`);
+
+  const newEmerging = ['FX:USDINR', 'FX:USDBRL', 'FX:USDIDR', 'FX:USDPKR', 'FX:USDBDT'];
+  console.log('\nUser-requested currencies registered?');
+  for (const id of newEmerging) {
+    const a = win0.OTCApi.ASSET_BY_ID[id];
+    console.log(`  ${id}: ${a ? '✓ ' + a.label : '✗ MISSING'}`);
+  }
+
+  // ---- 2. Strategy distribution across symbols (incl. emerging) ----
+  const symbols = [
+    'BTCUSDT', 'ETHUSDT',
+    'FX:EURUSD', 'FX:USDJPY',
+    'FX:USDINR', 'FX:USDBRL', 'FX:USDIDR', 'FX:USDPKR', 'FX:USDBDT',
+    'FX:USDPHP', 'FX:USDTHB', 'FX:USDVND',
+    'CM:XAUUSD', 'IX:SP500', 'ST:AAPL', 'SY:VOL75'
+  ];
   const tfs = ['1m', '5m'];
 
   let buy = 0, sell = 0, neutral = 0, total = 0;
   const samples = [];
-  // Run multiple iterations — each has a different synthetic seed because
-  // api.js seeds RNG by Date.now() / candleSec.
-  // We use vm.createContext per iteration so module-level state resets.
-  for (let iter = 0; iter < 8; iter++) {
+  for (let iter = 0; iter < 6; iter++) {
     const win = makeWindow();
-    // override Date to shift the seed
     const baseTime = Date.now() + iter * 60_000_000;
     win.Date = class extends Date {
       constructor(...args) { super(...args.length ? args : [baseTime]); }
       static now() { return baseTime; }
     };
-    // Re-run api.js so it picks up the new Date
     const apiSrc = fs.readFileSync(path.join(__dirname, '..', 'js/api.js'), 'utf8');
     vm.runInContext(apiSrc, win, { filename: 'js/api.js' });
     const stratSrc = fs.readFileSync(path.join(__dirname, '..', 'js/strategy.js'), 'utf8');
@@ -78,16 +97,57 @@ function makeWindow() {
       }
     }
   }
-
-  console.log('\n=== Signal distribution across 8 seeds × 6 symbols × 2 timeframes ===');
+  console.log('\n=== Signal distribution ===');
+  console.log(`6 seeds × ${symbols.length} symbols × ${tfs.length} timeframes`);
   console.log(`Total: ${total}   BUY: ${buy}   SELL: ${sell}   NEUTRAL: ${neutral}`);
   console.log(`Trade rate: ${((buy + sell) / total * 100).toFixed(1)}%`);
 
-  console.log('\n=== Sample non-neutral signals ===');
-  samples.slice(0, 10).forEach(s => {
-    console.log(`${s.pairLabel.padEnd(22)} ${s.timeframe.padEnd(4)} ${s.direction.padEnd(6)} `+
-                `strength=${String(s.strength + '%').padStart(4)} winProb=${String(s.winProb + '%').padStart(4)} `+
-                `trend=${s.trend.padEnd(8)} RSI=${String(s.rsi).padStart(5)}`);
-    console.log('   ' + s.confluences.slice(0, 6).join(' • '));
+  // pick a few samples featuring emerging-market currencies
+  const fxSamples = samples.filter(s => s.symbol.startsWith('FX:USD') &&
+    !['FX:USDJPY','FX:USDCAD','FX:USDCHF'].includes(s.symbol)).slice(0, 5);
+  if (fxSamples.length) {
+    console.log('\n=== Sample emerging-market signals ===');
+    fxSamples.forEach(s => {
+      console.log(`${s.pairLabel.padEnd(40)} ${s.timeframe.padEnd(3)} ${s.direction.padEnd(5)} `+
+                  `str=${String(s.strength + '%').padStart(4)} win=${String(s.winProb + '%').padStart(4)} ` +
+                  `entry=${s.entryPrice}`);
+      console.log('   ' + s.confluences.slice(0, 4).join(' • '));
+    });
+  }
+
+  // ---- 3. Telegram helpers ----
+  console.log('\n=== Telegram helpers ===');
+  const winT = makeWindow();
+
+  // Save settings
+  winT.OTCStore.saveSettings({
+    tg: true, tgAuto: true, tgToken: '123456:abc', tgChat: '12345',
+    tgMinStrength: 80, tgIntervalSec: 45
   });
+  const s = winT.OTCStore.getSettings();
+  console.log('Settings round-trip:',
+    s.tg, s.tgAuto, s.tgMinStrength, s.tgIntervalSec, s.tgScanGroup, s.tgTimeframe);
+
+  // Dedupe cache
+  const key = 'BTCUSDT|1m|BUY|123456';
+  console.log('isTgSent before mark:', winT.OTCStore.isTgSent(key));
+  winT.OTCStore.markTgSent(key);
+  console.log('isTgSent after mark:', winT.OTCStore.isTgSent(key));
+
+  // Daily counter
+  let r = winT.OTCStore.bumpTgSentCount();
+  console.log('After 1st bump:', { sentToday: r.tgSentToday, total: r.tgSentTotal });
+  r = winT.OTCStore.bumpTgSentCount();
+  console.log('After 2nd bump:', { sentToday: r.tgSentToday, total: r.tgSentTotal });
+
+  // Format a Telegram message
+  const sample = samples[0];
+  if (sample) {
+    const msg = winT.OTCNotify.formatTelegram({ ...sample, broker: 'Quotex' });
+    console.log('\nFormatted Telegram message:\n----------\n' + msg + '\n----------');
+  }
+
+  // Token-format validation
+  const r1 = await winT.OTCNotify.sendTelegram('test', { force: true, token: 'bogus', chat: '1' });
+  console.log('\nInvalid token rejected:', r1.error);
 })();
