@@ -1,7 +1,18 @@
 /* ============================================
-   strategy.js — combines indicators, patterns, SMC
-   into a single weighted BUY/SELL/NEUTRAL signal.
+   strategy.js — SMC-first signal engine
+   Combines indicators + Smart Money Concepts into a single
+   weighted BUY/SELL/NEUTRAL signal.
    exposes window.OTCStrategy.analyze(symbol, timeframe)
+
+   Confluence score is the sum of signed weights:
+     • SMC primitives carry the heaviest weights (BOS, CHoCH,
+       liquidity sweep, order block mitigation, FVG entry).
+     • Indicator confluences (EMA trend, VWAP, RSI, volume) play
+       a supporting role.
+     • Premium/discount zone acts as a side-of-trade filter.
+
+   strength = clamp(|score| / MAX_SCORE * 100, 0, 100)
+   winProb  = clamp(50 + strength * 0.42, 60, 95)
 ============================================ */
 
 (function () {
@@ -11,25 +22,15 @@
   const P = window.OTCPatterns;
   const Api = window.OTCApi;
 
-  /* Confluence scoring:
-     - Each fired confluence contributes a signed weight to a directional score.
-     - Final strength = clamp(|score| / maxScore * 100, 0, 100).
-     - Win probability = 50 + 0.42 * strength (capped 60..95).
-     - We only emit BUY / SELL when:
-        a) sideways filter passes (market not too choppy)
-        b) directional score >= MIN_SCORE
-        c) RSI doesn't strongly contradict the direction
-  */
-
-  const MIN_SCORE_BASE = 2.0;     // minimum absolute score to emit a signal
-  const MAX_SCORE = 6.0;          // theoretical upper bound for normalisation
+  const MIN_SCORE = 2.2;
+  const MAX_SCORE = 7.5;
 
   function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
 
-  async function analyze(symbol, timeframe, opts) {
+  async function analyze(symbol, timeframe) {
     const { candles, source, interval } = await Api.getCandles(symbol, timeframe, 150);
     if (!candles || candles.length < 40) {
-      return makeNeutral(symbol, timeframe, candles, ['Not enough data']);
+      return makeNeutral(symbol, timeframe, candles, ['Not enough data'], { source });
     }
 
     const closes = candles.map(c => c.close);
@@ -37,8 +38,6 @@
 
     /* ---- core indicators ---- */
     const rsiArr = I.rsi(closes, 14);
-    const ema9 = I.ema(closes, 9);
-    const ema21 = I.ema(closes, 21);
     const ema50 = I.ema(closes, 50);
     const vwapArr = I.vwap(candles);
     const trend = I.trendDirection(closes, 9, 21);
@@ -50,12 +49,21 @@
     const vwapVal = vwapArr[vwapArr.length - 1];
     const ema50Val = ema50[ema50.length - 1];
 
+    /* ---- candlestick + classic SMC ---- */
     const cps = P.detectCandlePatterns(candles);
     const breakout = P.detectBreakout(candles, sr);
     const fakeBO = P.detectFakeBreakout(candles, sr);
     const sweep = P.detectLiquiditySweep(candles, 12);
     const continuation = P.detectTrendContinuation(candles, trend);
     const reversal = P.detectReversal(candles, sr, cps);
+
+    /* ---- advanced SMC ---- */
+    const ob = P.detectOrderBlocks(candles, 40);
+    const fvg = P.detectFVG(candles, 30);
+    const bos = P.detectBOS(candles, trend);
+    const choch = P.detectCHoCH(candles, trend);
+    const eq = P.detectEqualLevels(candles, 50);
+    const pd = P.detectPremiumDiscount(candles, 50);
 
     /* ---- sideways filter ---- */
     if (sideways) {
@@ -67,112 +75,127 @@
     /* ---- accumulate confluences ---- */
     let score = 0;
     const conf = [];
+    function add(text, weight, dir) {
+      score += weight;
+      conf.push({ text, dir: dir || (weight > 0 ? +1 : weight < 0 ? -1 : 0) });
+    }
 
-    // 1) EMA trend filter
+    /* === SMC primary engine (heavy weights) === */
+    if (choch) {
+      // CHoCH = trend reversal — strongest reversal signal in SMC
+      if (choch.type === 'choch-up')   add('SMC: CHoCH up — trend reversal', +1.6, +1);
+      if (choch.type === 'choch-down') add('SMC: CHoCH down — trend reversal', -1.6, -1);
+    }
+    if (bos) {
+      // BOS = trend continuation
+      if (bos.type === 'bos-up')   add('SMC: BOS up — continuation', +1.4, +1);
+      if (bos.type === 'bos-down') add('SMC: BOS down — continuation', -1.4, -1);
+    }
+    if (sweep) {
+      if (sweep.type === 'sweep-low')  add('SMC: Buy-side liquidity swept', +1.3, +1);
+      if (sweep.type === 'sweep-high') add('SMC: Sell-side liquidity swept', -1.3, -1);
+    }
+    if (ob.mitigating === 'bullish') add('SMC: Mitigating bullish order block', +1.1, +1);
+    if (ob.mitigating === 'bearish') add('SMC: Mitigating bearish order block', -1.1, -1);
+
+    if (fvg.entering === 'bullish')  add('SMC: Entering bullish FVG', +0.8, +1);
+    if (fvg.entering === 'bearish')  add('SMC: Entering bearish FVG', -0.8, -1);
+
+    // Equal levels recently swept add extra weight to sweep/CHoCH
+    if (eq.eqHigh && sweep && sweep.type === 'sweep-high') {
+      add('SMC: Equal highs liquidity grabbed', -0.7, -1);
+    }
+    if (eq.eqLow && sweep && sweep.type === 'sweep-low') {
+      add('SMC: Equal lows liquidity grabbed', +0.7, +1);
+    }
+
+    // Premium/Discount filter — modest weight, biases the trade direction
+    if (pd) {
+      if (pd.zone === 'discount') add(`SMC: Price in discount (${(pd.pos*100).toFixed(0)}%)`, +0.4, +1);
+      if (pd.zone === 'premium')  add(`SMC: Price in premium (${(pd.pos*100).toFixed(0)}%)`, -0.4, -1);
+    }
+
+    if (fakeBO) {
+      if (fakeBO.type === 'fake-down') add('SMC: Bear trap (fake breakdown)', +1.2, +1);
+      if (fakeBO.type === 'fake-up')   add('SMC: Bull trap (fake breakout)', -1.2, -1);
+    }
+
+    if (breakout) {
+      if (breakout.type === 'breakout-up')   add('Break above resistance', +0.9, +1);
+      if (breakout.type === 'breakout-down') add('Break below support', -0.9, -1);
+    }
+    if (continuation) {
+      if (continuation.type === 'continuation-up')   add('Trend continuation up', +0.7, +1);
+      if (continuation.type === 'continuation-down') add('Trend continuation down', -0.7, -1);
+    }
+    if (reversal) {
+      if (reversal.type === 'reversal-up')   add(`Reversal at support (${reversal.pattern})`, +0.8, +1);
+      if (reversal.type === 'reversal-down') add(`Reversal at resistance (${reversal.pattern})`, -0.8, -1);
+    }
+
+    /* === Indicator confluences (supporting weights) === */
     if (trend.dir === 'up') {
-      score += 1.0 + trend.strength * 0.5;
-      conf.push({ text: 'EMA9 > EMA21 (uptrend)', dir: +1 });
+      add('EMA9 > EMA21 (uptrend)', +0.7 + trend.strength * 0.4, +1);
     } else if (trend.dir === 'down') {
-      score -= 1.0 + trend.strength * 0.5;
-      conf.push({ text: 'EMA9 < EMA21 (downtrend)', dir: -1 });
+      add('EMA9 < EMA21 (downtrend)', -(0.7 + trend.strength * 0.4), -1);
     }
 
-    // 2) Long-term EMA50 alignment
     if (ema50Val != null) {
-      if (last.close > ema50Val && trend.dir === 'up') {
-        score += 0.4; conf.push({ text: 'Price above EMA50', dir: +1 });
-      } else if (last.close < ema50Val && trend.dir === 'down') {
-        score -= 0.4; conf.push({ text: 'Price below EMA50', dir: -1 });
-      }
+      if (last.close > ema50Val && trend.dir === 'up') add('Price above EMA50', +0.3, +1);
+      else if (last.close < ema50Val && trend.dir === 'down') add('Price below EMA50', -0.3, -1);
     }
 
-    // 3) VWAP confirmation
     if (vwapVal != null) {
-      if (last.close > vwapVal) {
-        score += 0.5; conf.push({ text: 'Price above VWAP', dir: +1 });
-      } else {
-        score -= 0.5; conf.push({ text: 'Price below VWAP', dir: -1 });
-      }
+      if (last.close > vwapVal) add('Price above VWAP', +0.4, +1);
+      else add('Price below VWAP', -0.4, -1);
     }
 
-    // 4) RSI confirmation / contradiction
     if (rsiVal != null) {
-      if (rsiVal < 30) {
-        score += 0.8; conf.push({ text: `RSI ${rsiVal.toFixed(1)} oversold`, dir: +1 });
-      } else if (rsiVal > 70) {
-        score -= 0.8; conf.push({ text: `RSI ${rsiVal.toFixed(1)} overbought`, dir: -1 });
-      } else if (rsiVal > 55 && trend.dir === 'up') {
-        score += 0.3; conf.push({ text: `RSI ${rsiVal.toFixed(1)} bullish`, dir: +1 });
-      } else if (rsiVal < 45 && trend.dir === 'down') {
-        score -= 0.3; conf.push({ text: `RSI ${rsiVal.toFixed(1)} bearish`, dir: -1 });
-      }
+      if (rsiVal < 30) add(`RSI ${rsiVal.toFixed(1)} oversold`, +0.7, +1);
+      else if (rsiVal > 70) add(`RSI ${rsiVal.toFixed(1)} overbought`, -0.7, -1);
+      else if (rsiVal > 55 && trend.dir === 'up') add(`RSI ${rsiVal.toFixed(1)} bullish`, +0.25, +1);
+      else if (rsiVal < 45 && trend.dir === 'down') add(`RSI ${rsiVal.toFixed(1)} bearish`, -0.25, -1);
     }
 
-    // 5) Candlestick patterns
     cps.forEach(c => {
-      if (c.bias === 'bull') { score += c.weight * 0.7; conf.push({ text: c.name, dir: +1 }); }
-      else if (c.bias === 'bear') { score -= c.weight * 0.7; conf.push({ text: c.name, dir: -1 }); }
+      if (c.bias === 'bull') add(c.name, c.weight * 0.5, +1);
+      else if (c.bias === 'bear') add(c.name, -c.weight * 0.5, -1);
     });
 
-    // 6) Breakout
-    if (breakout) {
-      if (breakout.type === 'breakout-up')  { score += 1.0; conf.push({ text: 'Breakout above resistance', dir: +1 }); }
-      if (breakout.type === 'breakout-down'){ score -= 1.0; conf.push({ text: 'Breakout below support', dir: -1 }); }
-    }
-
-    // 7) Fake breakout (reversal trap)
-    if (fakeBO) {
-      if (fakeBO.type === 'fake-up')   { score -= 1.2; conf.push({ text: 'Fake breakout (bull trap)', dir: -1 }); }
-      if (fakeBO.type === 'fake-down') { score += 1.2; conf.push({ text: 'Fake breakdown (bear trap)', dir: +1 }); }
-    }
-
-    // 8) SMC liquidity sweep
-    if (sweep) {
-      if (sweep.type === 'sweep-high') { score -= 1.4; conf.push({ text: 'Liquidity sweep — sell-side', dir: -1 }); }
-      if (sweep.type === 'sweep-low')  { score += 1.4; conf.push({ text: 'Liquidity sweep — buy-side', dir: +1 }); }
-    }
-
-    // 9) Trend continuation
-    if (continuation) {
-      if (continuation.type === 'continuation-up')  { score += 0.8; conf.push({ text: 'Trend continuation up', dir: +1 }); }
-      if (continuation.type === 'continuation-down'){ score -= 0.8; conf.push({ text: 'Trend continuation down', dir: -1 }); }
-    }
-
-    // 10) Reversal at S/R
-    if (reversal) {
-      if (reversal.type === 'reversal-up')   { score += 0.9; conf.push({ text: `Reversal at support (${reversal.pattern})`, dir: +1 }); }
-      if (reversal.type === 'reversal-down') { score -= 0.9; conf.push({ text: `Reversal at resistance (${reversal.pattern})`, dir: -1 }); }
-    }
-
-    // 11) Volume spike confirms direction of latest candle
     if (volSpike >= 1.6) {
-      if (last.close > last.open) { score += 0.5; conf.push({ text: `Volume spike ×${volSpike.toFixed(1)} (bull)`, dir: +1 }); }
-      else if (last.close < last.open) { score -= 0.5; conf.push({ text: `Volume spike ×${volSpike.toFixed(1)} (bear)`, dir: -1 }); }
+      if (last.close > last.open) add(`Volume spike ×${volSpike.toFixed(1)} (bull)`, +0.4, +1);
+      else if (last.close < last.open) add(`Volume spike ×${volSpike.toFixed(1)} (bear)`, -0.4, -1);
     }
 
     /* ---- decide ---- */
     const absScore = Math.abs(score);
-    const minScore = MIN_SCORE_BASE;
     let direction = 'NEUTRAL';
+    if (absScore >= MIN_SCORE) direction = score > 0 ? 'BUY' : 'SELL';
 
-    if (absScore >= minScore) {
-      direction = score > 0 ? 'BUY' : 'SELL';
-    }
-
-    // RSI veto: don't BUY when extremely overbought, don't SELL when extremely oversold
-    if (direction === 'BUY' && rsiVal > 78) {
+    // RSI veto: never go against extreme conditions
+    if (direction === 'BUY' && rsiVal != null && rsiVal > 78) {
       direction = 'NEUTRAL';
       conf.push({ text: 'Veto: RSI extreme overbought', dir: 0 });
     }
-    if (direction === 'SELL' && rsiVal < 22) {
+    if (direction === 'SELL' && rsiVal != null && rsiVal < 22) {
       direction = 'NEUTRAL';
       conf.push({ text: 'Veto: RSI extreme oversold', dir: 0 });
     }
 
+    // Premium/Discount filter — don't BUY in premium / don't SELL in discount
+    if (direction === 'BUY' && pd && pd.zone === 'premium' && pd.pos > 0.85) {
+      direction = 'NEUTRAL';
+      conf.push({ text: 'Veto: BUY rejected in deep premium', dir: 0 });
+    }
+    if (direction === 'SELL' && pd && pd.zone === 'discount' && pd.pos < 0.15) {
+      direction = 'NEUTRAL';
+      conf.push({ text: 'Veto: SELL rejected in deep discount', dir: 0 });
+    }
+
     const strength = Math.round(clamp(absScore / MAX_SCORE * 100, 0, 100));
     const winProb = direction === 'NEUTRAL'
-      ? Math.round(40 + strength * 0.2)                    // low confidence
-      : Math.round(clamp(50 + strength * 0.42, 60, 95));   // calibrated
+      ? Math.round(40 + strength * 0.2)
+      : Math.round(clamp(50 + strength * 0.42, 60, 95));
 
     const trendLabel = trend.dir === 'up' ? 'Bullish'
       : trend.dir === 'down' ? 'Bearish' : 'Sideways';
@@ -195,6 +218,14 @@
       candleSecRemaining: Api.candleSecondsRemaining(timeframe),
       confluences: conf.map(c => c.text),
       confluenceObjs: conf,
+      smc: {
+        bos: bos ? bos.type : null,
+        choch: choch ? choch.type : null,
+        sweep: sweep ? sweep.type : null,
+        orderBlock: ob.mitigating,
+        fvg: fvg.entering,
+        zone: pd ? pd.zone : null
+      },
       source,
       sideways: false,
       sr,

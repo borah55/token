@@ -42,6 +42,7 @@
       $('#app').hidden = false;
     }, 600);
 
+    populateAssetDropdown();
     bindNavigation();
     bindHomeScreen();
     bindLiveScreen();
@@ -56,6 +57,43 @@
 
     // Start live scanner & watchlist auto-refresh
     startAutoRefresh();
+  }
+
+  /* =================================================================
+     ASSET DROPDOWN — built from window.OTCApi.ASSETS registry
+  ================================================================= */
+  const GROUP_LABELS = {
+    crypto:        'Crypto OTC',
+    forex_major:   'Forex Majors (OTC)',
+    forex_cross:   'Forex Crosses (OTC)',
+    forex_exotic:  'Forex Exotics (OTC)',
+    commodity:     'Commodities (Gold, Oil, etc.)',
+    index:         'Indices (S&P, Nasdaq, etc.)',
+    stock:         'Stocks (OTC)',
+    synthetic:     'Synthetic (Volatility, Boom, Crash)'
+  };
+  const GROUP_ORDER = ['crypto', 'forex_major', 'forex_cross', 'forex_exotic', 'commodity', 'index', 'stock', 'synthetic'];
+
+  function populateAssetDropdown() {
+    const sel = $('#asset');
+    if (!sel) return;
+    const byGroup = {};
+    Api.ASSETS.forEach(a => { (byGroup[a.group] = byGroup[a.group] || []).push(a); });
+
+    sel.innerHTML = '';
+    GROUP_ORDER.forEach(g => {
+      if (!byGroup[g]) return;
+      const og = document.createElement('optgroup');
+      og.label = GROUP_LABELS[g] || g;
+      byGroup[g].forEach(a => {
+        const o = document.createElement('option');
+        o.value = a.id;
+        o.textContent = a.label;
+        if (a.id === 'ETHUSDT') o.selected = true;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
   }
 
   /* =================================================================
@@ -216,6 +254,8 @@
         </div>
       </div>
 
+      ${renderSmcSummary(sig)}
+
       <div>
         <div class="m-lbl" style="color:var(--text-dim);font-size:11px;letter-spacing:1px;text-transform:uppercase">Signal strength</div>
         <div class="sig-bar ${actionClass}"><i style="width:${sig.strength}%"></i></div>
@@ -227,7 +267,7 @@
       <div class="sig-confluence" style="margin-top:14px">
         <div class="conf-title">Confluences (${sig.confluences.length})</div>
         <ul>
-          ${(sig.confluenceObjs || []).slice(0, 10).map(c =>
+          ${(sig.confluenceObjs || []).slice(0, 12).map(c =>
             `<li class="${c.dir < 0 ? 'neg' : ''}">${escapeHtml(c.text)}</li>`
           ).join('')}
         </ul>
@@ -262,6 +302,30 @@
         });
       });
     });
+  }
+
+  /* ----- SMC summary block (shown above the strength bar) ----- */
+  function renderSmcSummary(sig) {
+    if (!sig || !sig.smc) return '';
+    const s = sig.smc;
+    const items = [];
+    function pill(label, value, cls) {
+      items.push(`<span class="smc-pill ${cls || ''}">${escapeHtml(label)}: <strong>${escapeHtml(value)}</strong></span>`);
+    }
+    if (s.bos)   pill('BOS', s.bos === 'bos-up' ? '▲ Up' : '▼ Down', s.bos === 'bos-up' ? 'bull' : 'bear');
+    if (s.choch) pill('CHoCH', s.choch === 'choch-up' ? '▲ Up' : '▼ Down', s.choch === 'choch-up' ? 'bull' : 'bear');
+    if (s.sweep) pill('Sweep', s.sweep === 'sweep-low' ? 'Buy-side ▲' : 'Sell-side ▼', s.sweep === 'sweep-low' ? 'bull' : 'bear');
+    if (s.orderBlock) pill('OB', s.orderBlock === 'bullish' ? '▲ Bullish' : '▼ Bearish', s.orderBlock === 'bullish' ? 'bull' : 'bear');
+    if (s.fvg)        pill('FVG', s.fvg === 'bullish' ? '▲ Bullish' : '▼ Bearish', s.fvg === 'bullish' ? 'bull' : 'bear');
+    if (s.zone)       pill('Zone', s.zone[0].toUpperCase() + s.zone.slice(1));
+
+    if (!items.length) return '';
+    return `
+      <div class="smc-block">
+        <div class="conf-title">Smart Money Concepts</div>
+        <div class="smc-pills">${items.join('')}</div>
+      </div>
+    `;
   }
 
   function startCountdown(sig) {
@@ -331,10 +395,7 @@
   }
 
   function pairsForFilter(f) {
-    if (f === 'crypto') return Api.ALL_PAIRS.crypto;
-    if (f === 'forex') return Api.ALL_PAIRS.forex;
-    if (f === 'synthetic') return Api.ALL_PAIRS.synthetic;
-    return [...Api.ALL_PAIRS.crypto.slice(0, 8), ...Api.ALL_PAIRS.forex.slice(0, 5), ...Api.ALL_PAIRS.synthetic.slice(0, 3)];
+    return Api.PAIRS_FILTER[f] || Api.PAIRS_FILTER.all;
   }
 
   async function refreshLiveList(force) {
@@ -349,9 +410,9 @@
     const settings = Store.getSettings();
 
     const results = [];
-    // Throttled parallel: chunks of 4
-    for (let i = 0; i < pairs.length; i += 4) {
-      const chunk = pairs.slice(i, i + 4);
+    // Throttled parallel: chunks of 5
+    for (let i = 0; i < pairs.length; i += 5) {
+      const chunk = pairs.slice(i, i + 5);
       const part = await Promise.all(chunk.map(p =>
         Strategy.analyze(p, tf).catch(e => null)
       ));

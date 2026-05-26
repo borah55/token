@@ -80,47 +80,14 @@
         </div>
       </div>
 
-      <!-- Asset selector -->
+      <!-- Asset selector — populated from window.OTCApi.ASSETS at runtime -->
       <div class="form-group">
         <label class="form-label">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
           Trading Asset
         </label>
         <div class="select-wrapper">
-          <select id="asset" class="select">
-            <optgroup label="Crypto OTC">
-              <option value="BTCUSDT">BTC/USD (OTC)</option>
-              <option value="ETHUSDT" selected>ETH/USD (OTC)</option>
-              <option value="BNBUSDT">BNB/USD (OTC)</option>
-              <option value="SOLUSDT">SOL/USD (OTC)</option>
-              <option value="XRPUSDT">XRP/USD (OTC)</option>
-              <option value="DOGEUSDT">DOGE/USD (OTC)</option>
-              <option value="ADAUSDT">ADA/USD (OTC)</option>
-              <option value="LTCUSDT">LTC/USD (OTC)</option>
-              <option value="AVAXUSDT">AVAX/USD (OTC)</option>
-              <option value="LINKUSDT">LINK/USD (OTC)</option>
-              <option value="TRXUSDT">TRX/USD (OTC)</option>
-              <option value="MATICUSDT">MATIC/USD (OTC)</option>
-            </optgroup>
-            <optgroup label="Forex OTC">
-              <option value="FX:EURUSD">EUR/USD (OTC)</option>
-              <option value="FX:GBPUSD">GBP/USD (OTC)</option>
-              <option value="FX:USDJPY">USD/JPY (OTC)</option>
-              <option value="FX:AUDUSD">AUD/USD (OTC)</option>
-              <option value="FX:USDCAD">USD/CAD (OTC)</option>
-              <option value="FX:USDCHF">USD/CHF (OTC)</option>
-              <option value="FX:NZDUSD">NZD/USD (OTC)</option>
-              <option value="FX:EURJPY">EUR/JPY (OTC)</option>
-              <option value="FX:GBPJPY">GBP/JPY (OTC)</option>
-            </optgroup>
-            <optgroup label="Synthetic OTC">
-              <option value="SY:VOL75">Volatility 75 Index</option>
-              <option value="SY:VOL100">Volatility 100 Index</option>
-              <option value="SY:BOOM1000">Boom 1000 Index</option>
-              <option value="SY:CRASH1000">Crash 1000 Index</option>
-              <option value="SY:STEP">Step Index</option>
-            </optgroup>
-          </select>
+          <select id="asset" class="select"></select>
           <svg class="caret" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
       </div>
@@ -179,6 +146,9 @@
         <button class="chip chip-active" data-filter="all">All</button>
         <button class="chip" data-filter="crypto">Crypto</button>
         <button class="chip" data-filter="forex">Forex</button>
+        <button class="chip" data-filter="commodity">Metals/Oil</button>
+        <button class="chip" data-filter="index">Indices</button>
+        <button class="chip" data-filter="stock">Stocks</button>
         <button class="chip" data-filter="synthetic">Synthetic</button>
         <button class="chip chip-refresh" id="rescanBtn">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
