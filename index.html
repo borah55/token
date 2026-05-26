@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1929" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- SEO -->
+  <title>OTC Signal Generator — Pro Trading Signals for Quotex, Binomo & Pocket Option</title>
+  <meta name="description" content="Free professional OTC trading signal generator for Quotex, Binomo, Pocket Option and IQ Option. Real-time BUY/SELL signals using Smart Money Concepts, price action, RSI, EMA, VWAP and candlestick analysis." />
+  <meta name="keywords" content="OTC signals, Quotex signals, Binomo signals, Pocket Option signals, binary options signals, trading bot, smart money concepts, price action, free trading signals" />
+  <meta name="author" content="OTC Signal Generator" />
+  <meta property="og:title" content="OTC Signal Generator — Pro Trading Signals" />
+  <meta property="og:description" content="Real-time OTC trading signals with advanced AI strategy. BUY/CALL and SELL/PUT alerts for Quotex, Binomo, Pocket Option." />
+  <meta property="og:type" content="website" />
+  <meta name="robots" content="index, follow" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+
+  <!-- TradingView Lightweight Charts (mini chart widgets) -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
+</head>
+<body>
+
+  <!-- Splash / loader -->
+  <div id="splash" class="splash">
+    <div class="splash-logo">
+      <span class="rocket">🚀</span>
+      <span class="splash-title">OTC Signal Generator</span>
+      <span class="rocket">🚀</span>
+    </div>
+    <div class="splash-loader"><div></div><div></div><div></div></div>
+    <p class="splash-tag">Loading market engine…</p>
+  </div>
+
+  <!-- App shell -->
+  <div id="app" class="app" hidden>
+
+    <!-- ====== HOME / GENERATOR SCREEN ====== -->
+    <section class="screen screen-home active" data-screen="home">
+      <header class="hero">
+        <h1 class="hero-title">
+          <span class="rocket">🚀</span>
+          OTC Signal<br />Generator
+          <span class="rocket">🚀</span>
+        </h1>
+        <p class="hero-sub">Generate high-precision trading signals with advanced AI algorithms</p>
+        <div class="hero-badge">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>
+          <span>Powered by Smart AI Engine</span>
+        </div>
+      </header>
+
+      <!-- Broker selector -->
+      <div class="form-group">
+        <label class="form-label">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>
+          Select Broker
+        </label>
+        <div class="select-wrapper">
+          <select id="broker" class="select">
+            <option value="quotex">Quotex</option>
+            <option value="binomo">Binomo</option>
+            <option value="pocketoption">Pocket Option</option>
+            <option value="iqoption">IQ Option</option>
+            <option value="olymptrade">Olymp Trade</option>
+            <option value="expertoption">Expert Option</option>
+          </select>
+          <svg class="caret" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+
+      <!-- Asset selector -->
+      <div class="form-group">
+        <label class="form-label">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Trading Asset
+        </label>
+        <div class="select-wrapper">
+          <select id="asset" class="select">
+            <optgroup label="Crypto OTC">
+              <option value="BTCUSDT">BTC/USD (OTC)</option>
+              <option value="ETHUSDT" selected>ETH/USD (OTC)</option>
+              <option value="BNBUSDT">BNB/USD (OTC)</option>
+              <option value="SOLUSDT">SOL/USD (OTC)</option>
+              <option value="XRPUSDT">XRP/USD (OTC)</option>
+              <option value="DOGEUSDT">DOGE/USD (OTC)</option>
+              <option value="ADAUSDT">ADA/USD (OTC)</option>
+              <option value="LTCUSDT">LTC/USD (OTC)</option>
+              <option value="AVAXUSDT">AVAX/USD (OTC)</option>
+              <option value="LINKUSDT">LINK/USD (OTC)</option>
+              <option value="TRXUSDT">TRX/USD (OTC)</option>
+              <option value="MATICUSDT">MATIC/USD (OTC)</option>
+            </optgroup>
+            <optgroup label="Forex OTC">
+              <option value="FX:EURUSD">EUR/USD (OTC)</option>
+              <option value="FX:GBPUSD">GBP/USD (OTC)</option>
+              <option value="FX:USDJPY">USD/JPY (OTC)</option>
+              <option value="FX:AUDUSD">AUD/USD (OTC)</option>
+              <option value="FX:USDCAD">USD/CAD (OTC)</option>
+              <option value="FX:USDCHF">USD/CHF (OTC)</option>
+              <option value="FX:NZDUSD">NZD/USD (OTC)</option>
+              <option value="FX:EURJPY">EUR/JPY (OTC)</option>
+              <option value="FX:GBPJPY">GBP/JPY (OTC)</option>
+            </optgroup>
+            <optgroup label="Synthetic OTC">
+              <option value="SY:VOL75">Volatility 75 Index</option>
+              <option value="SY:VOL100">Volatility 100 Index</option>
+              <option value="SY:BOOM1000">Boom 1000 Index</option>
+              <option value="SY:CRASH1000">Crash 1000 Index</option>
+              <option value="SY:STEP">Step Index</option>
+            </optgroup>
+          </select>
+          <svg class="caret" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+
+      <!-- Timeframe -->
+      <div class="form-group">
+        <label class="form-label">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14 15"/><path d="M9 2h6"/></svg>
+          Time Frame
+        </label>
+        <div class="tf-pills" id="tfPills">
+          <button class="tf-pill" data-tf="5s">5s</button>
+          <button class="tf-pill" data-tf="15s">15s</button>
+          <button class="tf-pill" data-tf="30s">30s</button>
+          <button class="tf-pill" data-tf="1m">1m</button>
+          <button class="tf-pill active" data-tf="5m">5m</button>
+        </div>
+      </div>
+
+      <!-- Generate button -->
+      <button id="generateBtn" class="btn-generate">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+        <span>GENERATE SIGNAL</span>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+      </button>
+
+      <!-- Result area -->
+      <div id="signalResult" class="signal-result" hidden></div>
+
+      <!-- Mini live chart -->
+      <div class="card chart-card" id="chartCard" hidden>
+        <div class="chart-card-head">
+          <div>
+            <div class="chart-pair" id="chartPair">—</div>
+            <div class="chart-price" id="chartPrice">—</div>
+          </div>
+          <div class="chart-change" id="chartChange">—</div>
+        </div>
+        <div class="chart-host" id="chartHost"></div>
+      </div>
+
+      <p class="risk-note">⚠ Trading involves risk. Signals are technical analysis suggestions, not financial advice.</p>
+    </section>
+
+    <!-- ====== LIVE SCANNER SCREEN ====== -->
+    <section class="screen screen-live" data-screen="live">
+      <header class="screen-head">
+        <h2>Live OTC Scanner</h2>
+        <div class="market-status">
+          <span class="dot dot-live"></span>
+          <span id="marketStatus">Market: Live</span>
+        </div>
+      </header>
+      <p class="screen-sub">Auto-scanning the strongest OTC signals across the market</p>
+      <div class="scanner-controls">
+        <button class="chip chip-active" data-filter="all">All</button>
+        <button class="chip" data-filter="crypto">Crypto</button>
+        <button class="chip" data-filter="forex">Forex</button>
+        <button class="chip" data-filter="synthetic">Synthetic</button>
+        <button class="chip chip-refresh" id="rescanBtn">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Rescan
+        </button>
+      </div>
+      <div id="liveList" class="live-list"></div>
+    </section>
+
+    <!-- ====== HISTORY SCREEN ====== -->
+    <section class="screen screen-history" data-screen="history">
+      <header class="screen-head"><h2>Signal History</h2></header>
+      <div class="stats-row">
+        <div class="stat-card stat-win"><span class="stat-num" id="statWins">0</span><span class="stat-lbl">Wins</span></div>
+        <div class="stat-card stat-loss"><span class="stat-num" id="statLosses">0</span><span class="stat-lbl">Losses</span></div>
+        <div class="stat-card stat-rate"><span class="stat-num" id="statRate">0%</span><span class="stat-lbl">Win Rate</span></div>
+        <div class="stat-card stat-total"><span class="stat-num" id="statTotal">0</span><span class="stat-lbl">Total</span></div>
+      </div>
+      <div class="history-actions">
+        <button id="clearHistoryBtn" class="btn-ghost">Clear History</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+    <!-- ====== WATCHLIST SCREEN ====== -->
+    <section class="screen screen-watch" data-screen="watch">
+      <header class="screen-head"><h2>Favorite Pairs</h2></header>
+      <p class="screen-sub">Tap the star on any pair to add it to your watchlist</p>
+      <div id="watchList" class="live-list"></div>
+    </section>
+
+    <!-- ====== SETTINGS SCREEN ====== -->
+    <section class="screen screen-settings" data-screen="settings">
+      <header class="screen-head"><h2>Settings</h2></header>
+
+      <div class="card setting-card">
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Sound alerts</div>
+            <div class="setting-desc">Play a chime when a new signal is generated</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="setSound" /><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Push notifications</div>
+            <div class="setting-desc">Show popup alerts inside the app</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="setPush" checked /><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Auto-refresh signals</div>
+            <div class="setting-desc">Continuously rescan the market in background</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="setAuto" checked /><span></span></label>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-name">Filter weak signals</div>
+            <div class="setting-desc">Hide signals below 65% strength</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="setFilter" checked /><span></span></label>
+        </div>
+      </div>
+
+      <div class="card setting-card">
+        <div class="setting-name" style="margin-bottom:10px">Telegram alerts</div>
+        <div class="setting-desc" style="margin-bottom:14px">
+          Send each signal to your Telegram channel via your own bot.
+        </div>
+        <input type="text" id="tgToken" class="input" placeholder="Bot token (from @BotFather)" />
+        <input type="text" id="tgChat" class="input" placeholder="Chat ID (e.g. -1001234567890)" />
+        <div class="setting-row" style="margin-top:6px">
+          <div class="setting-desc">Enable Telegram forwarding</div>
+          <label class="switch"><input type="checkbox" id="setTg" /><span></span></label>
+        </div>
+        <button id="tgTestBtn" class="btn-secondary" type="button">Send Test Message</button>
+      </div>
+
+      <div class="card setting-card">
+        <div class="setting-name" style="margin-bottom:6px">About</div>
+        <div class="setting-desc">
+          OTC Signal Generator v1.0 — built with pure HTML, CSS & JavaScript. Uses real Binance market data + Smart Money Concepts strategy. Forex/synthetic OTC pairs are simulated for demonstration. <br/><br/>
+          <strong>Risk warning:</strong> Trading is risky and you can lose your capital. This tool is for educational use only and does not constitute financial advice.
+        </div>
+      </div>
+
+      <div style="height:24px"></div>
+    </section>
+
+    <!-- ====== BOTTOM NAVIGATION ====== -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-target="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>
+        <span>Signals</span>
+      </button>
+      <button class="nav-btn" data-target="live">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
+        <span>Live</span>
+      </button>
+      <button class="nav-btn" data-target="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+        <span>History</span>
+      </button>
+      <button class="nav-btn" data-target="watch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg>
+        <span>Watch</span>
+      </button>
+      <button class="nav-btn" data-target="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Toast / push popup container -->
+  <div id="toastHost" class="toast-host"></div>
+
+  <!-- App scripts -->
+  <script src="js/storage.js" defer></script>
+  <script src="js/notifications.js" defer></script>
+  <script src="js/indicators.js" defer></script>
+  <script src="js/patterns.js" defer></script>
+  <script src="js/api.js" defer></script>
+  <script src="js/strategy.js" defer></script>
+  <script src="js/chart.js" defer></script>
+  <script src="js/app.js" defer></script>
+  <script src="js/pwa.js" defer></script>
+</body>
+</html>
