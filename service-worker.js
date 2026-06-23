@@ -1,5 +1,5 @@
 /* Service worker — offline shell + asset cache */
-const VERSION = 'otcsg-v1.0.0';
+const VERSION = 'otcsg-v1.2.0';
 const CORE = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const CORE = [
   './js/indicators.js',
   './js/patterns.js',
   './js/api.js',
+  './js/fx-rates.js',
   './js/strategy.js',
   './js/chart.js',
   './js/app.js',

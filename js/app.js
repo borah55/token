@@ -26,7 +26,24 @@
     countdownTimer: null,
     autoTimer: null,
     liveFilter: 'all',
-    chartTimer: null
+    chartTimer: null,
+
+    // Auto-Telegram scanner state
+    tgTimer: null,            // setInterval id for the scanner
+    tgRunning: false,         // true while a scan pass is in flight
+    tgLastScanAt: null,       // ms timestamp of last completed scan
+    tgStatusTimer: null,      // ticks the "X seconds ago" line in the UI
+
+    // Diagnostic counters from the most recent scan pass
+    tgDiag: {
+      pairs: 0,         // total pairs analyzed
+      found: 0,         // non-NEUTRAL signals returned by the engine
+      skippedWeak: 0,   // signals dropped because strength < threshold
+      deduped: 0,       // signals already sent (dedupe cache hit)
+      sent: 0,          // newly forwarded this scan
+      failed: 0,        // Telegram send failures this scan
+      hint: ''          // human-readable summary
+    }
   };
 
   /* =================================================================
@@ -42,6 +59,7 @@
       $('#app').hidden = false;
     }, 600);
 
+    populateAssetDropdown();
     bindNavigation();
     bindHomeScreen();
     bindLiveScreen();
@@ -56,6 +74,48 @@
 
     // Start live scanner & watchlist auto-refresh
     startAutoRefresh();
+
+    // Start the Telegram auto-scanner if it's enabled
+    startTelegramScanner();
+    startTelegramStatusTicker();
+  }
+
+  /* =================================================================
+     ASSET DROPDOWN — built from window.OTCApi.ASSETS registry
+  ================================================================= */
+  const GROUP_LABELS = {
+    crypto:         'Crypto OTC',
+    forex_major:    'Forex Majors (OTC)',
+    forex_cross:    'Forex Crosses (OTC)',
+    forex_exotic:   'Forex Exotics (OTC)',
+    forex_emerging: 'Emerging Markets (INR · BRL · IDR · PKR · BDT…)',
+    commodity:      'Commodities (Gold, Oil, etc.)',
+    index:          'Indices (S&P, Nasdaq, etc.)',
+    stock:          'Stocks (OTC)',
+    synthetic:      'Synthetic (Volatility, Boom, Crash)'
+  };
+  const GROUP_ORDER = ['crypto', 'forex_major', 'forex_cross', 'forex_exotic', 'forex_emerging', 'commodity', 'index', 'stock', 'synthetic'];
+
+  function populateAssetDropdown() {
+    const sel = $('#asset');
+    if (!sel) return;
+    const byGroup = {};
+    Api.ASSETS.forEach(a => { (byGroup[a.group] = byGroup[a.group] || []).push(a); });
+
+    sel.innerHTML = '';
+    GROUP_ORDER.forEach(g => {
+      if (!byGroup[g]) return;
+      const og = document.createElement('optgroup');
+      og.label = GROUP_LABELS[g] || g;
+      byGroup[g].forEach(a => {
+        const o = document.createElement('option');
+        o.value = a.id;
+        o.textContent = a.label;
+        if (a.id === 'ETHUSDT') o.selected = true;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
   }
 
   /* =================================================================
@@ -216,6 +276,8 @@
         </div>
       </div>
 
+      ${renderSmcSummary(sig)}
+
       <div>
         <div class="m-lbl" style="color:var(--text-dim);font-size:11px;letter-spacing:1px;text-transform:uppercase">Signal strength</div>
         <div class="sig-bar ${actionClass}"><i style="width:${sig.strength}%"></i></div>
@@ -227,7 +289,7 @@
       <div class="sig-confluence" style="margin-top:14px">
         <div class="conf-title">Confluences (${sig.confluences.length})</div>
         <ul>
-          ${(sig.confluenceObjs || []).slice(0, 10).map(c =>
+          ${(sig.confluenceObjs || []).slice(0, 12).map(c =>
             `<li class="${c.dir < 0 ? 'neg' : ''}">${escapeHtml(c.text)}</li>`
           ).join('')}
         </ul>
@@ -262,6 +324,30 @@
         });
       });
     });
+  }
+
+  /* ----- SMC summary block (shown above the strength bar) ----- */
+  function renderSmcSummary(sig) {
+    if (!sig || !sig.smc) return '';
+    const s = sig.smc;
+    const items = [];
+    function pill(label, value, cls) {
+      items.push(`<span class="smc-pill ${cls || ''}">${escapeHtml(label)}: <strong>${escapeHtml(value)}</strong></span>`);
+    }
+    if (s.bos)   pill('BOS', s.bos === 'bos-up' ? '▲ Up' : '▼ Down', s.bos === 'bos-up' ? 'bull' : 'bear');
+    if (s.choch) pill('CHoCH', s.choch === 'choch-up' ? '▲ Up' : '▼ Down', s.choch === 'choch-up' ? 'bull' : 'bear');
+    if (s.sweep) pill('Sweep', s.sweep === 'sweep-low' ? 'Buy-side ▲' : 'Sell-side ▼', s.sweep === 'sweep-low' ? 'bull' : 'bear');
+    if (s.orderBlock) pill('OB', s.orderBlock === 'bullish' ? '▲ Bullish' : '▼ Bearish', s.orderBlock === 'bullish' ? 'bull' : 'bear');
+    if (s.fvg)        pill('FVG', s.fvg === 'bullish' ? '▲ Bullish' : '▼ Bearish', s.fvg === 'bullish' ? 'bull' : 'bear');
+    if (s.zone)       pill('Zone', s.zone[0].toUpperCase() + s.zone.slice(1));
+
+    if (!items.length) return '';
+    return `
+      <div class="smc-block">
+        <div class="conf-title">Smart Money Concepts</div>
+        <div class="smc-pills">${items.join('')}</div>
+      </div>
+    `;
   }
 
   function startCountdown(sig) {
@@ -331,10 +417,7 @@
   }
 
   function pairsForFilter(f) {
-    if (f === 'crypto') return Api.ALL_PAIRS.crypto;
-    if (f === 'forex') return Api.ALL_PAIRS.forex;
-    if (f === 'synthetic') return Api.ALL_PAIRS.synthetic;
-    return [...Api.ALL_PAIRS.crypto.slice(0, 8), ...Api.ALL_PAIRS.forex.slice(0, 5), ...Api.ALL_PAIRS.synthetic.slice(0, 3)];
+    return Api.PAIRS_FILTER[f] || Api.PAIRS_FILTER.all;
   }
 
   async function refreshLiveList(force) {
@@ -349,9 +432,9 @@
     const settings = Store.getSettings();
 
     const results = [];
-    // Throttled parallel: chunks of 4
-    for (let i = 0; i < pairs.length; i += 4) {
-      const chunk = pairs.slice(i, i + 4);
+    // Throttled parallel: chunks of 5
+    for (let i = 0; i < pairs.length; i += 5) {
+      const chunk = pairs.slice(i, i + 5);
       const part = await Promise.all(chunk.map(p =>
         Strategy.analyze(p, tf).catch(e => null)
       ));
@@ -519,34 +602,188 @@
      SETTINGS
   ================================================================= */
   function bindSettingsScreen() {
-    const map = {
+    // Generic toggle settings
+    const toggleMap = {
       sound: '#setSound', push: '#setPush', auto: '#setAuto',
-      filterWeak: '#setFilter', tg: '#setTg'
+      filterWeak: '#setFilter', tg: '#setTg', tgAuto: '#setTgAuto'
     };
-    Object.keys(map).forEach(k => {
-      const el = $(map[k]);
+    Object.keys(toggleMap).forEach(k => {
+      const el = $(toggleMap[k]);
       if (!el) return;
       el.addEventListener('change', () => {
-        Store.saveSettings({ [k]: el.checked });
+        const patch = { [k]: el.checked };
+
+        // === Telegram setup convenience ===
+        // If the user enables the auto-scanner, automatically enable
+        // forwarding too — having "auto on" + "forwarding off" was the
+        // most common cause of "scanner does nothing" reports.
+        if (k === 'tgAuto' && el.checked) {
+          patch.tg = true;
+          if ($('#setTg')) $('#setTg').checked = true;
+        }
+        // Disabling forwarding should also stop the auto scanner so
+        // the status line reflects reality.
+        if (k === 'tg' && !el.checked) {
+          patch.tgAuto = false;
+          if ($('#setTgAuto')) $('#setTgAuto').checked = false;
+        }
+
+        Store.saveSettings(patch);
+
         if (k === 'auto') startAutoRefresh();
         if (k === 'sound' && el.checked) {
           Notify.primeAudio();
           Notify.playChime('buy');
         }
+        if (k === 'tg' || k === 'tgAuto') {
+          startTelegramScanner();
+          updateTgStatusUI();
+        }
       });
     });
 
+    // Text inputs
     ['tgToken', 'tgChat'].forEach(k => {
       const el = $('#' + k);
-      el.addEventListener('change', () => Store.saveSettings({ [k]: el.value.trim() }));
+      el.addEventListener('change', () => {
+        Store.saveSettings({ [k]: el.value.trim() });
+        startTelegramScanner();
+      });
     });
 
+    // Strength slider
+    const minEl = $('#tgMinStrength');
+    const minOut = $('#tgMinStrengthOut');
+    if (minEl) {
+      minEl.addEventListener('input', () => {
+        if (minOut) minOut.textContent = minEl.value + '%';
+      });
+      minEl.addEventListener('change', () => {
+        Store.saveSettings({ tgMinStrength: +minEl.value });
+      });
+    }
+
+    // Interval input
+    const intEl = $('#tgInterval');
+    if (intEl) {
+      intEl.addEventListener('change', () => {
+        const n = Math.max(20, Math.min(900, +intEl.value || 60));
+        intEl.value = n;
+        Store.saveSettings({ tgIntervalSec: n });
+        startTelegramScanner();
+      });
+    }
+
+    // Scan group + timeframe
+    const grpEl = $('#tgScanGroup');
+    if (grpEl) grpEl.addEventListener('change', () => Store.saveSettings({ tgScanGroup: grpEl.value }));
+    const tfEl = $('#tgTimeframe');
+    if (tfEl) tfEl.addEventListener('change', () => Store.saveSettings({ tgTimeframe: tfEl.value }));
+
+    // Test button
     $('#tgTestBtn').addEventListener('click', async () => {
-      const r = await Notify.sendTelegram('✅ Test message from OTC Signal Generator');
+      const r = await Notify.sendTelegram(
+        '✅ *OTC Signal Generator — test message*\n\nIf you see this, your bot token and chat ID are correctly configured.',
+        { force: true }
+      );
       if (r.ok) Notify.toast({ type: 'buy', title: 'Telegram OK', desc: 'Test message delivered' });
-      else if (r.skipped) Notify.toast({ type: 'sell', title: 'Telegram off', desc: 'Enable it and add bot token + chat ID' });
       else Notify.toast({ type: 'sell', title: 'Telegram failed', desc: r.error || 'Check token / chat ID' });
+      updateTgStatusUI();
     });
+
+    // Force-scan button
+    const forceBtn = $('#tgScanNowBtn');
+    if (forceBtn) {
+      forceBtn.addEventListener('click', () => runTelegramScan(true));
+    }
+
+    // Reset counter button
+    const resetBtn = $('#tgResetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('Reset Telegram signal counter and dedupe cache?')) return;
+        Store.resetTgSentCount();
+        updateTgStatusUI();
+        Notify.toast({ type: 'info', title: 'Counter reset', desc: 'Daily Telegram counter cleared' });
+      });
+    }
+
+    // Setup diagnostic — runs the full pipeline against a known-good
+    // pair and shows where any failure occurs (token / chat / network /
+    // signal threshold / dedupe).
+    const diagBtn = $('#tgDiagBtn');
+    if (diagBtn) {
+      diagBtn.addEventListener('click', runSetupDiagnostic);
+    }
+  }
+
+  async function runSetupDiagnostic() {
+    const s = Store.getSettings();
+    const lines = [];
+    let ok = true;
+
+    function step(label, passed, detail) {
+      lines.push(`${passed ? '✓' : '✗'} ${label}${detail ? ' — ' + detail : ''}`);
+      if (!passed) ok = false;
+    }
+
+    // 1) Token + chat ID present?
+    step('Bot token entered', !!s.tgToken, s.tgToken ? '' : 'paste a token from @BotFather');
+    step('Chat ID entered',   !!s.tgChat,  s.tgChat ? '' : 'paste your chat / channel ID');
+
+    // 2) Token format
+    const tokOk = /^\d+:[A-Za-z0-9_\-]{20,}$/.test((s.tgToken || '').trim());
+    step('Token format looks valid', tokOk, tokOk ? '' : 'expected NUMBER:LETTERS form');
+
+    // 3) Forwarding switch on
+    step('Forwarding enabled', !!s.tg, s.tg ? '' : 'toggle "Enable Telegram forwarding"');
+
+    // 4) Try sending a test message right now
+    if (s.tgToken && s.tgChat && tokOk) {
+      const r = await Notify.sendTelegram(
+        '🔧 *Setup Diagnostic*\n\nIf you see this, your Telegram pipeline works end-to-end. The auto-scanner will now forward every qualifying signal.',
+        { force: true }
+      );
+      step('Telegram API responded OK', r.ok, r.ok ? 'message delivered' : (r.error || 'unknown error'));
+    } else {
+      step('Telegram API responded OK', false, 'skipped (missing credentials)');
+    }
+
+    // 5) Auto-scanner state
+    step('Auto-scanner enabled', !!s.tgAuto, s.tgAuto ? '' : 'toggle "Forward strong signals automatically"');
+
+    // 6) Threshold sanity
+    const minS = +s.tgMinStrength || 75;
+    if (minS > 85) {
+      step('Threshold is reachable', false, `${minS}% is very high — try 65–75%`);
+    } else {
+      step('Threshold is reachable', true, `${minS}% is reasonable`);
+    }
+
+    // 7) Run a one-shot live scan and show counts
+    Notify.toast({ type: 'info', title: 'Diagnostic running…', desc: 'Scanning the market once' });
+    await runTelegramScan(true, /*diagnostic*/ true);
+    const d = state.tgDiag;
+    step(
+      'Scan completed',
+      d.pairs > 0,
+      `analysed ${d.pairs} pair(s), found ${d.found} signal(s), forwarded ${d.sent}`
+    );
+
+    Notify.toast({
+      type: ok ? 'buy' : 'sell',
+      title: ok ? 'Setup looks healthy ✓' : 'Setup needs attention',
+      desc: lines.slice(-1)[0],
+      timeout: 5000
+    });
+
+    // Render full results inside the diagnostic box
+    const box = $('#tgDiagBox');
+    const hint = $('#tgDiagHint');
+    if (box && hint) {
+      box.style.display = 'block';
+      hint.innerHTML = lines.map(l => `<div class="tg-diag-line ${l.startsWith('✓') ? 'pass' : 'fail'}">${escapeHtml(l)}</div>`).join('');
+    }
   }
 
   function loadSettings() {
@@ -556,8 +793,228 @@
     $('#setAuto').checked = !!s.auto;
     $('#setFilter').checked = !!s.filterWeak;
     $('#setTg').checked = !!s.tg;
+    $('#setTgAuto').checked = !!s.tgAuto;
     $('#tgToken').value = s.tgToken || '';
     $('#tgChat').value = s.tgChat || '';
+
+    if ($('#tgMinStrength')) {
+      $('#tgMinStrength').value = s.tgMinStrength;
+      if ($('#tgMinStrengthOut')) $('#tgMinStrengthOut').textContent = s.tgMinStrength + '%';
+    }
+    if ($('#tgInterval')) $('#tgInterval').value = s.tgIntervalSec;
+    if ($('#tgScanGroup')) $('#tgScanGroup').value = s.tgScanGroup;
+    if ($('#tgTimeframe')) $('#tgTimeframe').value = s.tgTimeframe;
+
+    updateTgStatusUI();
+  }
+
+  /* =================================================================
+     AUTO-TELEGRAM SCANNER
+     - Runs on a configurable interval in the background
+     - Scans the user's chosen pair group for high-strength signals
+     - Dedupes via OTCStore.markTgSent so the same setup isn't forwarded
+       multiple times within the candle's lifetime
+     - Tracks daily / total counters and exposes status to the UI
+  ================================================================= */
+  function startTelegramScanner() {
+    stopTelegramScanner();
+    const s = Store.getSettings();
+    if (!s.tg || !s.tgAuto || !s.tgToken || !s.tgChat) {
+      updateTgStatusUI();
+      return;
+    }
+    const intervalMs = Math.max(20, +s.tgIntervalSec || 60) * 1000;
+    state.tgTimer = setInterval(runTelegramScan, intervalMs);
+    // Kick off an immediate scan so the user sees activity right away
+    runTelegramScan();
+    updateTgStatusUI();
+  }
+
+  function stopTelegramScanner() {
+    if (state.tgTimer) {
+      clearInterval(state.tgTimer);
+      state.tgTimer = null;
+    }
+  }
+
+  function pairsForScanGroup(g) {
+    if (g === 'watchlist') return Store.getWatchlist();
+    return Api.PAIRS_FILTER[g] || Api.PAIRS_FILTER.all;
+  }
+
+  async function runTelegramScan(forced, diagnostic) {
+    const s = Store.getSettings();
+    if (!s.tg || !s.tgToken || !s.tgChat) {
+      // Surface a clear hint so users know why nothing fires.
+      if (forced) {
+        Notify.toast({
+          type: 'sell',
+          title: 'Cannot scan yet',
+          desc: !s.tgToken ? 'Bot token is missing'
+              : !s.tgChat ? 'Chat ID is missing'
+              : 'Enable Telegram forwarding first'
+        });
+      }
+      return;
+    }
+    if (!forced && !s.tgAuto) return;
+    if (state.tgRunning) return;     // skip if previous scan still running
+
+    state.tgRunning = true;
+    // Reset diagnostic counters for this scan
+    const diag = state.tgDiag = {
+      pairs: 0, found: 0, skippedWeak: 0, deduped: 0, sent: 0, failed: 0, hint: ''
+    };
+    updateTgStatusUI();
+
+    try {
+      const pairs = pairsForScanGroup(s.tgScanGroup);
+      if (!pairs.length) {
+        diag.hint = 'No pairs in selected group';
+        return;
+      }
+
+      const tf = s.tgTimeframe || '1m';
+      const minStrength = Math.max(50, +s.tgMinStrength || 75);
+      const broker = $('#broker') ? $('#broker').selectedOptions[0].textContent.trim() : 'Auto-Scan';
+      let stoppedDueToAuth = false;
+
+      // Throttled parallel: chunks of 5
+      for (let i = 0; i < pairs.length; i += 5) {
+        if (stoppedDueToAuth) break;
+        const chunk = pairs.slice(i, i + 5);
+        const results = await Promise.all(chunk.map(p =>
+          Strategy.analyze(p, tf).catch(() => null)
+        ));
+
+        for (const sig of results) {
+          if (!sig) continue;
+          diag.pairs++;
+          if (sig.direction === 'NEUTRAL') continue;
+          diag.found++;
+
+          if (sig.strength < minStrength) {
+            diag.skippedWeak++;
+            continue;
+          }
+
+          const key = `${sig.symbol}|${sig.timeframe}|${sig.direction}|${sig.candleTime}`;
+          if (Store.isTgSent(key)) {
+            diag.deduped++;
+            continue;
+          }
+
+          // Reserve immediately so concurrent scans don't double-send
+          Store.markTgSent(key);
+
+          const msg = Notify.formatTelegram({ ...sig, broker });
+          const r = await Notify.sendTelegram(msg, { force: true });
+          if (r.ok) {
+            diag.sent++;
+            Store.bumpTgSentCount();
+            if (s.push && !diagnostic) {
+              Notify.toast({
+                type: sig.direction === 'BUY' ? 'buy' : 'sell',
+                title: `Telegram → ${sig.direction} ${sig.pairLabel}`,
+                desc: `Strength ${sig.strength}% · Win ${sig.winProb}%`
+              });
+            }
+          } else {
+            diag.failed++;
+            // Stop the scanner if the API rejected our credentials.
+            if (r.error && /Unauthorized|Bot token|Chat ID|Chat not found|Bot not found/i.test(r.error)) {
+              stoppedDueToAuth = true;
+              stopTelegramScanner();
+              Notify.toast({ type: 'sell', title: 'Auto-scanner stopped', desc: r.error });
+              break;
+            }
+          }
+        }
+      }
+
+      // Build a short human-readable hint summarizing the scan
+      if (diag.pairs === 0) diag.hint = 'No pairs analysed (data sources offline?)';
+      else if (diag.found === 0) diag.hint = 'No directional signals on this scan — wait or relax the filter';
+      else if (diag.sent > 0) diag.hint = `Forwarded ${diag.sent} signal(s) ✓`;
+      else if (diag.skippedWeak > 0 && diag.deduped === 0) diag.hint = `All signals below ${minStrength}% — lower the threshold`;
+      else if (diag.deduped > 0 && diag.sent === 0) diag.hint = 'All eligible signals already sent in the last hour';
+      else if (diag.failed > 0) diag.hint = `${diag.failed} send(s) failed — check Telegram error above`;
+
+      state.tgLastScanAt = Date.now();
+    } finally {
+      state.tgRunning = false;
+      updateTgStatusUI();
+    }
+  }
+
+  function startTelegramStatusTicker() {
+    if (state.tgStatusTimer) clearInterval(state.tgStatusTimer);
+    state.tgStatusTimer = setInterval(updateTgStatusUI, 1000);
+  }
+
+  function updateTgStatusUI() {
+    const lineEl = $('#tgStatusLine');
+    const dotEl  = $('#tgStatusDot');
+    const countEl = $('#tgSentCount');
+    const totalEl = $('#tgSentTotal');
+    const errEl  = $('#tgErrorLine');
+    if (!lineEl) return;
+
+    const s = Store.getSettings();
+    const today = Store.todayKey();
+    const sentToday = s.tgSentDate === today ? (s.tgSentToday || 0) : 0;
+
+    if (countEl) countEl.textContent = sentToday;
+    if (totalEl) totalEl.textContent = s.tgSentTotal || 0;
+
+    let label, on = false;
+    if (!s.tg) {
+      label = 'Telegram forwarding is OFF';
+    } else if (!s.tgToken || !s.tgChat) {
+      label = 'Telegram: bot token / chat ID required';
+    } else if (!s.tgAuto) {
+      label = 'Auto-scanner OFF (manual signals will still forward)';
+    } else if (state.tgRunning) {
+      label = 'Auto-scanner: scanning…';
+      on = true;
+    } else if (state.tgLastScanAt) {
+      const sec = Math.round((Date.now() - state.tgLastScanAt) / 1000);
+      const next = Math.max(0, Math.round((+s.tgIntervalSec || 60) - sec));
+      label = `Auto-scanner ON • last scan ${sec}s ago • next in ${next}s`;
+      on = true;
+    } else {
+      label = 'Auto-scanner ON • starting…';
+      on = true;
+    }
+    lineEl.textContent = label;
+    if (dotEl) dotEl.className = 'tg-dot ' + (on ? 'on' : 'off');
+
+    if (errEl) {
+      if (s.tgLastError) {
+        errEl.textContent = '⚠ ' + s.tgLastError;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+    }
+
+    // ----- Diagnostic counters from the most recent scan -----
+    const d = state.tgDiag;
+    const box = $('#tgDiagBox');
+    if (d && (d.pairs > 0 || d.hint)) {
+      if (box) box.style.display = 'block';
+      const map = {
+        '#tgDiagPairs':   d.pairs,
+        '#tgDiagFound':   d.found,
+        '#tgDiagSkipped': d.skippedWeak,
+        '#tgDiagDeduped': d.deduped,
+        '#tgDiagSent':    d.sent,
+        '#tgDiagFailed':  d.failed
+      };
+      Object.keys(map).forEach(sel => { const el = $(sel); if (el) el.textContent = map[sel]; });
+      const hintEl = $('#tgDiagHint');
+      if (hintEl && d.hint) hintEl.textContent = d.hint;
+    }
   }
 
   /* =================================================================

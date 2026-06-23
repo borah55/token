@@ -73,47 +73,116 @@
     });
   }
 
-  /* ----- Telegram forwarding ----- */
-  async function sendTelegram(text) {
+  /* ----- Telegram forwarding -----
+     Telegram Bot API is CORS-friendly so we hit it directly from the
+     browser. We surface clear error messages so users can debug bad
+     tokens / chat IDs without inspecting devtools.
+  */
+  async function sendTelegram(text, opts) {
+    opts = opts || {};
     const s = window.OTCStore.getSettings();
-    if (!s.tg || !s.tgToken || !s.tgChat) return { ok: false, skipped: true };
-    const url = `https://api.telegram.org/bot${encodeURIComponent(s.tgToken)}/sendMessage`;
+
+    const token = (opts.token || s.tgToken || '').trim();
+    const chat  = (opts.chat  || s.tgChat  || '').trim();
+
+    if (!opts.force) {
+      // master toggle off → silent skip
+      if (!s.tg) return { ok: false, skipped: true, reason: 'tg-disabled' };
+    }
+    if (!token) {
+      window.OTCStore.saveSettings({ tgLastError: 'Bot token missing' });
+      return { ok: false, error: 'Bot token missing' };
+    }
+    if (!chat) {
+      window.OTCStore.saveSettings({ tgLastError: 'Chat ID missing' });
+      return { ok: false, error: 'Chat ID missing' };
+    }
+    // Token format: <number>:<base64-ish>
+    if (!/^\d+:[A-Za-z0-9_\-]{20,}$/.test(token)) {
+      window.OTCStore.saveSettings({ tgLastError: 'Bot token format looks invalid' });
+      return { ok: false, error: 'Bot token format looks invalid' };
+    }
+
+    const url = `https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`;
     try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: s.tgChat,
+          chat_id: chat,
           text,
           parse_mode: 'Markdown',
           disable_web_page_preview: true
         })
       });
       const data = await res.json().catch(() => ({}));
-      return { ok: !!data.ok, data };
+      if (data && data.ok) {
+        window.OTCStore.saveSettings({ tgLastError: '' });
+        return { ok: true, data };
+      }
+      // Telegram returned an error. Common cases:
+      //   401 Unauthorized   -> bad token
+      //   400 Bad Request    -> chat not found, bot blocked, parse error
+      //   403 Forbidden      -> bot kicked from chat
+      //   429 Too Many       -> rate limited
+      let err = (data && (data.description || data.error_code)) || ('HTTP ' + res.status);
+      if (res.status === 401) err = 'Unauthorized — check the bot token';
+      else if (res.status === 403) err = 'Forbidden — add the bot to the chat first';
+      else if (res.status === 404) err = 'Bot not found — token may be revoked';
+      else if (data && data.description && /chat not found/i.test(data.description)) {
+        err = 'Chat not found — verify the chat ID (use a numeric ID, e.g. -100…)';
+      }
+      window.OTCStore.saveSettings({ tgLastError: err });
+      return { ok: false, error: err, data };
     } catch (e) {
-      return { ok: false, error: e.message };
+      const err = (e && e.message) || 'Network error';
+      window.OTCStore.saveSettings({ tgLastError: err });
+      return { ok: false, error: err };
     }
   }
 
   function formatTelegram(sig) {
     const dir = sig.direction === 'BUY' ? '🟢 *BUY / CALL*' :
                 sig.direction === 'SELL' ? '🔴 *SELL / PUT*' : '⚠️ *NO TRADE*';
-    return [
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const lines = [
       '📡 *OTC Signal Generator*',
       '',
-      `*Pair:* ${sig.pairLabel}`,
-      `*Broker:* ${sig.broker}`,
-      `*Timeframe:* ${sig.timeframe}`,
+      `*Pair:* ${escapeMd(sig.pairLabel)}`,
+      `*Broker:* ${escapeMd(sig.broker || '—')}`,
+      `*Timeframe:* ${escapeMd(sig.timeframe)}`,
       `*Action:* ${dir}`,
       `*Strength:* ${sig.strength}%`,
       `*Win probability:* ${sig.winProb}%`,
-      `*Trend:* ${sig.trend}`,
-      `*Entry price:* ${sig.entryPrice}`,
-      sig.confluences && sig.confluences.length
-        ? `\n*Confluences:* ${sig.confluences.slice(0, 6).join(', ')}`
-        : ''
-    ].filter(Boolean).join('\n');
+      `*Trend:* ${escapeMd(sig.trend)}`,
+      `*RSI:* ${sig.rsi != null ? sig.rsi : '—'}`,
+      `*Entry price:* ${escapeMd(sig.entryPrice)}`,
+      `*Time:* ${time}`
+    ];
+
+    if (sig.smc) {
+      const smcBits = [];
+      if (sig.smc.bos)         smcBits.push(`BOS ${sig.smc.bos === 'bos-up' ? '▲' : '▼'}`);
+      if (sig.smc.choch)       smcBits.push(`CHoCH ${sig.smc.choch === 'choch-up' ? '▲' : '▼'}`);
+      if (sig.smc.sweep)       smcBits.push(`Sweep ${sig.smc.sweep === 'sweep-low' ? '▲' : '▼'}`);
+      if (sig.smc.orderBlock)  smcBits.push(`OB ${sig.smc.orderBlock === 'bullish' ? '▲' : '▼'}`);
+      if (sig.smc.fvg)         smcBits.push(`FVG ${sig.smc.fvg === 'bullish' ? '▲' : '▼'}`);
+      if (sig.smc.zone)        smcBits.push(`Zone ${sig.smc.zone}`);
+      if (smcBits.length) lines.push('', `*SMC:* ${escapeMd(smcBits.join(' • '))}`);
+    }
+
+    if (sig.confluences && sig.confluences.length) {
+      lines.push('', `*Confluences:* ${escapeMd(sig.confluences.slice(0, 6).join(', '))}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  // Telegram Markdown reserves: _ * ` [
+  // Escape them so user-supplied symbol names don't break formatting.
+  function escapeMd(s) {
+    return String(s == null ? '' : s).replace(/([_*`\[])/g, '\\$1');
   }
 
   /* ----- Public push() — combines toast + sound + telegram ----- */

@@ -9,7 +9,8 @@
   const KEYS = {
     history: 'otcsg_history_v1',
     watchlist: 'otcsg_watchlist_v1',
-    settings: 'otcsg_settings_v1'
+    settings: 'otcsg_settings_v1',
+    tgSent:   'otcsg_tg_sent_v1'    // dedupe cache for Telegram auto-scan
   };
 
   const DEFAULT_SETTINGS = {
@@ -17,9 +18,22 @@
     push: true,
     auto: true,
     filterWeak: true,
-    tg: false,
-    tgToken: '',
-    tgChat: ''
+
+    // ----- Telegram -----
+    tg: false,                  // master "enable Telegram forwarding" toggle
+    tgToken: '',                // bot token from @BotFather
+    tgChat: '',                 // chat / channel ID
+    tgAuto: false,              // automatic background scanner
+    tgMinStrength: 65,          // minimum signal strength % to forward (was 75 — too restrictive)
+    tgIntervalSec: 60,          // how often (seconds) the scanner runs
+    tgScanGroup: 'forex',       // 'all' | 'crypto' | 'forex' | 'forex_emerging'
+                                // | 'commodity' | 'index' | 'stock' | 'synthetic'
+                                // | 'watchlist'
+    tgTimeframe: '1m',          // analysis timeframe used by the scanner
+    tgSentDate: '',             // YYYY-MM-DD of the last counted day
+    tgSentToday: 0,             // signals sent today
+    tgSentTotal: 0,             // signals sent total
+    tgLastError: ''             // human-readable last error, if any
   };
 
   function read(key, fallback) {
@@ -85,7 +99,58 @@
       write(KEYS.watchlist, list);
       return list;
     },
-    isWatched(symbol) { return this.getWatchlist().includes(symbol); }
+    isWatched(symbol) { return this.getWatchlist().includes(symbol); },
+
+    /* ===== Telegram dedupe cache =====
+       Stores recently-sent signal keys (symbol|timeframe|direction|candleTime)
+       so the auto-scanner doesn't send the same signal twice within an hour. */
+    getTgSentCache() { return read(KEYS.tgSent, {}); },
+    pruneTgSentCache(maxAgeMs) {
+      maxAgeMs = maxAgeMs || 3600000; // 1 hour
+      const now = Date.now();
+      const cache = this.getTgSentCache();
+      let changed = false;
+      for (const k in cache) {
+        if (now - cache[k] > maxAgeMs) { delete cache[k]; changed = true; }
+      }
+      if (changed) write(KEYS.tgSent, cache);
+      return cache;
+    },
+    isTgSent(key) {
+      const cache = this.pruneTgSentCache();
+      return !!cache[key];
+    },
+    markTgSent(key) {
+      const cache = this.pruneTgSentCache();
+      cache[key] = Date.now();
+      write(KEYS.tgSent, cache);
+    },
+    clearTgSentCache() { write(KEYS.tgSent, {}); },
+
+    /* ===== Telegram daily counter ===== */
+    todayKey() {
+      const d = new Date();
+      return d.getFullYear() + '-' +
+             String(d.getMonth() + 1).padStart(2, '0') + '-' +
+             String(d.getDate()).padStart(2, '0');
+    },
+    bumpTgSentCount() {
+      const s = this.getSettings();
+      const today = this.todayKey();
+      let sentToday = s.tgSentToday || 0;
+      if (s.tgSentDate !== today) sentToday = 0;
+      sentToday++;
+      const total = (s.tgSentTotal || 0) + 1;
+      return this.saveSettings({
+        tgSentDate: today,
+        tgSentToday: sentToday,
+        tgSentTotal: total
+      });
+    },
+    resetTgSentCount() {
+      this.saveSettings({ tgSentToday: 0, tgSentTotal: 0, tgSentDate: this.todayKey() });
+      this.clearTgSentCache();
+    }
   };
 
   window.OTCStore = Store;
